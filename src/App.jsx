@@ -1,1891 +1,1506 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./styles.css";
+import * as THREE from "three";
 
 /* =========================================================
-   TATSULOK
-   PLAYABLE FIRST-PERSON DISTRICT
-   Mobile / iPad / Desktop
-   ========================================================= */
+   TATSULOK — CHARACTER DATA
+   Existing 11 character image paths are preserved.
+========================================================= */
 
 const characters = [
-  {
-    id: "peyudo",
-    name: "PEYUDO",
-    faction: "PANGINOON",
-    className: "panginoon",
-    image: "/assets/peyudo.jpg",
-    tagline: "Mabilis. Mayaman. Tanyag. Makapangyarihan.",
-    role: "Pangunahing puwersa ng Panginoon",
-    power: "Bilis, yaman, impluwensiya",
-    symbol: "Mataas na posisyon sa tatsulok",
-    description:
-      "Isang makapangyarihang personalidad na gumagamit ng bilis, yaman at impluwensiya upang kontrolin ang direksiyon ng laban.",
-  },
-  {
-    id: "misteryo",
-    name: "MISTERYO",
-    faction: "PANGINOON",
-    className: "panginoon",
-    image: "/assets/misteryo.jpg",
-    tagline: "Hustisya na dumadaan sa dahas.",
-    role: "Tagapaghiganti",
-    power: "Dahas at lihim",
-    symbol: "Anino",
-    description:
-      "Isang misteryosong karakter na naniniwalang ang hustisya ay kailangang kunin sa sariling paraan.",
-  },
-  {
-    id: "bangag",
-    name: "BANGAG",
-    faction: "PANGINOON",
-    className: "panginoon",
-    image: "/assets/bangag.jpg",
-    tagline: "Magulong kapangyarihang nakaupo sa trono.",
-    role: "Tagapaghawak ng kapangyarihan",
-    power: "Lakas at awtoridad",
-    symbol: "Trono",
-    description:
-      "Magulo ngunit makapangyarihan. Ang kaniyang posisyon ay nagbibigay sa kaniya ng malaking impluwensiya sa sistema.",
-  },
-  {
-    id: "pula",
-    name: "PULA",
-    faction: "PANGINOON",
-    className: "panginoon",
-    image: "/assets/pula.jpg",
-    tagline: "Kamay na bakal at mga sinulid na pumupunit.",
-    role: "Tagakontrol",
-    power: "Kontrol at pananakot",
-    symbol: "Pulang sinulid",
-    description:
-      "Isang karakter na kumokontrol sa mga galaw ng iba gamit ang takot, puwersa at mga nakatagong koneksiyon.",
-  },
-  {
-    id: "tanikala",
-    name: "TANIKALA",
-    faction: "PANGINOON",
-    className: "panginoon",
-    image: "/assets/tanikala.jpg",
-    tagline: "Tauhan ng Panginoon na nagbubuklod sa sistema.",
-    role: "Tagasunod",
-    power: "Disiplina at pagkontrol",
-    symbol: "Tanikala",
-    description:
-      "Isang tauhang nakakabit sa sistema at nagsisilbing tagapagpatupad ng mga utos.",
-  },
-  {
-    id: "presyo",
-    name: "PRESYO",
-    faction: "MALAKAS",
-    className: "malakas",
-    image: "/assets/presyo.jpg",
-    tagline: "Gumagamit ng hipnotismo.",
-    role: "Manipulator",
-    power: "Hipnotismo at impluwensiya",
-    symbol: "Mata",
-    description:
-      "Kayang baguhin ang pag-iisip at pananaw ng iba upang maiba ang direksiyon ng laban.",
-  },
-  {
-    id: "pintuan",
-    name: "PINTUAN",
-    faction: "MALAKAS",
-    className: "malakas",
-    image: "/assets/pintuan.jpg",
-    tagline: "Trangkahan na maaaring magmanipula ng tadhana.",
-    role: "Tagapamagitan",
-    power: "Pagbukas at pagsara ng posibilidad",
-    symbol: "Pintuan",
-    description:
-      "Isang bantay ng mga posibilidad. Ang bawat pintuang binubuksan ay maaaring magdala sa ibang kapalaran.",
-  },
-  {
-    id: "ling",
-    name: "LING",
-    faction: "MABUTI",
-    className: "mabuti",
-    image: "/assets/ling.jpg",
-    tagline: "Tagapagpagaling.",
-    role: "Tagapagpagaling",
-    power: "Pagpapagaling at pag-asa",
-    symbol: "Buhay",
-    description:
-      "Pinoprotektahan ang iba at nagbibigay ng pagkakataon para makabangon ang mga nasaktan.",
-  },
-  {
-    id: "batid",
-    name: "BATID",
-    faction: "MABUTI",
-    className: "mabuti",
-    image: "/assets/batid.jpg",
-    tagline: "Kumakatawan sa edukasyon.",
-    role: "Tagapagturo",
-    power: "Kaalaman at edukasyon",
-    symbol: "Karunungan",
-    description:
-      "Naniniwala na ang kaalaman ang susi upang mabago ang sistema at makagawa ng mas mabuting desisyon.",
-  },
-  {
-    id: "tisa",
-    name: "TISA",
-    faction: "MABUTI",
-    className: "mabuti",
-    image: "/assets/tisa.jpg",
-    tagline: "Kumakatawan sa pagtatanim.",
-    role: "Tagapagtanim",
-    power: "Pag-unlad at pagtitiyaga",
-    symbol: "Binhi",
-    description:
-      "Kumakatawan sa mabagal ngunit matibay na pag-unlad na nagsisimula sa isang maliit na binhi.",
-  },
-  {
-    id: "subalit",
-    name: "SUBALIT",
-    faction: "MABUTI",
-    className: "mabuti",
-    image: "/assets/subalit.jpg",
-    tagline: "Lumaban batay sa puso, isip, at kabutihan.",
-    role: "Tagapagtanggol",
-    power: "Tapang at paninindigan",
-    symbol: "Puso at isip",
-    description:
-      "Hindi lamang lakas ang kaniyang sandata. Gumagamit siya ng puso, isip at paninindigan.",
-  },
-];
-
-const factions = {
-  LAHAT: "lahat",
-  PANGINOON: "panginoon",
-  MALAKAS: "malakas",
-  MABUTI: "mabuti",
-};
+  ["peyudo", "PEYUDO", "PANGINOON", 68, 42, 55, 60, "/assets/peyudo.jpg"],
+  ["misteryo", "MISTERYO", "PANGINOON", 62, 38, 43, 35, "/assets/misteryo.jpg"],
+  ["bangag", "BANGAG", "PANGINOON", 70, 35, 40, 48, "/assets/bangag.jpg"],
+  ["pula", "PULA", "PANGINOON", 66, 44, 39, 51, "/assets/pula.jpg"],
+  ["tanikala", "TANIKALA", "PANGINOON", 57, 52, 46, 40, "/assets/tanikala.jpg"],
+  ["presyo", "PRESYO", "MALAKAS", 58, 48, 52, 64, "/assets/presyo.jpg"],
+  ["pintuan", "PINTUAN", "MALAKAS", 52, 54, 57, 45, "/assets/pintuan.jpg"],
+  ["ling", "LING", "MABUTI", 42, 68, 76, 35, "/assets/ling.jpg"],
+  ["batid", "BATID", "MABUTI", 45, 70, 74, 38, "/assets/batid.jpg"],
+  ["tisa", "TISA", "MABUTI", 40, 66, 79, 32, "/assets/tisa.jpg"],
+  ["subalit", "SUBALIT", "MABUTI", 54, 73, 81, 41, "/assets/subalit.jpg"],
+].map(([id, name, faction, power, trust, humanity, wealth, image]) => ({
+  id,
+  name,
+  faction,
+  power,
+  trust,
+  humanity,
+  wealth,
+  image,
+}));
 
 /* =========================================================
-   WORLD LOCATIONS
-   ========================================================= */
-
-const locations = [
-  {
-    id: "evacuation",
-    name: "EVACUATION CENTER",
-    type: "OBJECTIVE",
-    x: 50,
-    y: 36,
-    icon: "✚",
-    color: "green",
-  },
-  {
-    id: "relief",
-    name: "RELIEF SUPPLIES",
-    type: "SUPPLY",
-    x: 69,
-    y: 42,
-    icon: "▣",
-    color: "gold",
-  },
-  {
-    id: "office",
-    name: "DISTRICT OFFICE",
-    type: "INTEL",
-    x: 30,
-    y: 25,
-    icon: "⌂",
-    color: "red",
-  },
-  {
-    id: "school",
-    name: "SCHOOL",
-    type: "CIVILIAN",
-    x: 24,
-    y: 51,
-    icon: "▤",
-    color: "blue",
-  },
-  {
-    id: "market",
-    name: "MARKET",
-    type: "AREA",
-    x: 55,
-    y: 58,
-    icon: "▦",
-    color: "gold",
-  },
-  {
-    id: "warehouse",
-    name: "WAREHOUSE",
-    type: "AREA",
-    x: 14,
-    y: 69,
-    icon: "▣",
-    color: "purple",
-  },
-  {
-    id: "depot",
-    name: "DEPOT",
-    type: "AREA",
-    x: 80,
-    y: 63,
-    icon: "▰",
-    color: "blue",
-  },
-  {
-    id: "bridge",
-    name: "OLD BRIDGE",
-    type: "ROUTE",
-    x: 83,
-    y: 82,
-    icon: "═",
-    color: "blue",
-  },
-  {
-    id: "tower",
-    name: "TOWER",
-    type: "LANDMARK",
-    x: 54,
-    y: 15,
-    icon: "△",
-    color: "purple",
-  },
-  {
-    id: "hotel",
-    name: "HOTEL",
-    type: "LANDMARK",
-    x: 72,
-    y: 18,
-    icon: "H",
-    color: "gold",
-  },
-  {
-    id: "cityhall",
-    name: "CITY HALL",
-    type: "LANDMARK",
-    x: 21,
-    y: 17,
-    icon: "⌘",
-    color: "blue",
-  },
-];
+   MISSIONS
+   No timer.
+   The objective is physically placed in the 3D world.
+========================================================= */
 
 const missions = [
   {
     id: 1,
-    title: "EVACUATION CENTER",
-    description: "Tulungan ang mga mamamayan.",
-    objective: "evacuation",
-    message: "Pumasok sa distrito. Hanapin ang evacuation center.",
+    title: "ANG BAHA",
+    location: "DISTRICT 7",
+    objective: "EVACUATION CENTER",
+    description:
+      "Isang matinding baha ang lumubog sa distrito. Hanapin ang evacuation center at iligtas ang mga mamamayan.",
+    scene: "flood",
+    choices: [
+      {
+        id: "A",
+        title: "GAMITIN ANG SARILING YAMAN PARA SA EVACUATION.",
+        desc: "Gamitin ang sariling yaman upang mailikas ang mga tao.",
+        effects: { humanity: 15, trust: 15, power: -5 },
+        tone: "good",
+      },
+      {
+        id: "B",
+        title: "KONTROLIN ANG RELIEF DISTRIBUTION.",
+        desc: "Ikontrol ang distribusyon upang mapanatili ang impluwensiya.",
+        effects: { power: 15, trust: -10 },
+        tone: "gold",
+      },
+      {
+        id: "C",
+        title: "HUWAG MAKIALAM.",
+        desc: "Hayaan ang distrito na lutasin ang sariling problema.",
+        effects: { wealth: 10, humanity: -15, trust: -8 },
+        tone: "bad",
+      },
+    ],
   },
+
   {
     id: 2,
-    title: "RELIEF SUPPLIES",
-    description: "Hanapin ang nawawalang suplay.",
-    objective: "relief",
-    message: "Nasa loob ng district ang nawawalang relief supplies.",
+    title: "ANG LINDOL",
+    location: "OLD DISTRICT",
+    objective: "COLLAPSED BUILDING",
+    description:
+      "Isang lindol ang sumira sa lumang distrito. May gusaling maaaring gumuho.",
+    scene: "quake",
+    choices: [
+      {
+        id: "A",
+        title: "UNAHIN ANG MGA NAKALIGTAS.",
+        desc: "Iligtas muna ang mga tao bago ang anumang ari-arian.",
+        effects: { humanity: 18, trust: 10, power: -4 },
+        tone: "good",
+      },
+      {
+        id: "B",
+        title: "KUNIN ANG MAHALAGANG DOKUMENTO.",
+        desc: "Unahin ang dokumentong maaaring magbunyag ng lihim.",
+        effects: { power: 10, trust: 5, humanity: -5 },
+        tone: "gold",
+      },
+      {
+        id: "C",
+        title: "IWAN ANG LUGAR.",
+        desc: "Masyadong mapanganib. Iligtas ang sarili.",
+        effects: { power: 4, humanity: -18, trust: -12 },
+        tone: "bad",
+      },
+    ],
   },
+
   {
     id: 3,
-    title: "DISTRICT OFFICE",
-    description: "Siyasatin ang dokumento.",
-    objective: "office",
-    message: "May dokumentong maaaring magbago ng iyong pananaw.",
+    title: "KURAPSYON",
+    location: "CITY HALL",
+    objective: "CITY HALL ARCHIVE",
+    description:
+      "May nawawalang pondo at isang lihim na listahan ng mga pangalan.",
+    scene: "corruption",
+    choices: [
+      {
+        id: "A",
+        title: "ILABAS ANG EBIDENSIYA SA PUBLIKO.",
+        desc: "Ipakita ang dokumento kahit may kapalit itong panganib.",
+        effects: { humanity: 12, trust: 18, power: -8 },
+        tone: "good",
+      },
+      {
+        id: "B",
+        title: "MAKIPAG-DEAL SA SISTEMA.",
+        desc: "Makipagkasundo upang makakuha ng access sa loob.",
+        effects: { power: 18, trust: -3, wealth: 8 },
+        tone: "gold",
+      },
+      {
+        id: "C",
+        title: "SUNUGIN ANG MGA DOKUMENTO.",
+        desc: "Burahin ang ebidensiya at protektahan ang mga sangkot.",
+        effects: { power: 8, trust: -18, humanity: -12 },
+        tone: "bad",
+      },
+    ],
   },
+
   {
     id: 4,
-    title: "OLD BRIDGE",
-    description: "Buksan ang evacuation route.",
-    objective: "bridge",
-    message: "Ang lumang tulay ang huling daan palabas ng distrito.",
+    title: "ANG TANIKALA",
+    location: "CENTRAL TOWER",
+    objective: "CENTRAL TOWER",
+    description:
+      "Sa huling yugto, kailangang pumili kung babaguhin o aangkinin ang sistema.",
+    scene: "tower",
+    choices: [
+      {
+        id: "A",
+        title: "PUTULIN ANG SISTEMA.",
+        desc: "Alisin ang lumang tanikala kahit hindi sigurado ang kinabukasan.",
+        effects: { humanity: 25, trust: 12, power: -20 },
+        tone: "good",
+      },
+      {
+        id: "B",
+        title: "BAGUHIN MULA SA LOOB NG SISTEMA.",
+        desc: "Gamitin ang kapangyarihan upang baguhin ito.",
+        effects: { power: 10, trust: 10, humanity: 5 },
+        tone: "gold",
+      },
+      {
+        id: "C",
+        title: "PANATILIHIN ANG LAHAT NG KAPANGYARIHAN.",
+        desc: "Aangkinin ang pinakamalaking kapangyarihan.",
+        effects: { power: 25, trust: -25, humanity: -25 },
+        tone: "bad",
+      },
+    ],
   },
 ];
 
-/* =========================================================
-   CITY GEOMETRY
-   ========================================================= */
-
-const cityBuildings = [
-  { x: 8, y: 9, w: 15, h: 21, height: 5, name: "CITY HALL" },
-  { x: 27, y: 7, w: 13, h: 17, height: 7, name: "TOWER" },
-  { x: 50, y: 8, w: 13, h: 22, height: 6, name: "HOTEL" },
-  { x: 69, y: 8, w: 19, h: 19, height: 5, name: "MALL" },
-  { x: 5, y: 43, w: 17, h: 22, height: 4, name: "WAREHOUSE" },
-  { x: 27, y: 37, w: 14, h: 18, height: 5, name: "SCHOOL" },
-  { x: 51, y: 40, w: 16, h: 18, height: 4, name: "MARKET" },
-  { x: 76, y: 43, w: 15, h: 24, height: 5, name: "DEPOT" },
-];
-
-/* =========================================================
-   APP
-   ========================================================= */
-
-function App() {
-  const [playerName, setPlayerName] = useState(
-    () => localStorage.getItem("tatsulok-player") || ""
-  );
-
-  const [selectedId, setSelectedId] = useState(
-    () => localStorage.getItem("tatsulok-character") || "subalit"
-  );
-
-  const [activeFaction, setActiveFaction] = useState("LAHAT");
-  const [ready, setReady] = useState(false);
-
-  const [screen, setScreen] = useState(
-    () => localStorage.getItem("tatsulok-screen") || "world"
-  );
-
-  const [mission, setMission] = useState(
-    () => Number(localStorage.getItem("tatsulok-mission")) || 1
-  );
-
-  const [health, setHealth] = useState(
-    () => Number(localStorage.getItem("tatsulok-health")) || 100
-  );
-
-  const [power, setPower] = useState(
-    () => Number(localStorage.getItem("tatsulok-power")) || 68
-  );
-
-  const [trust, setTrust] = useState(
-    () => Number(localStorage.getItem("tatsulok-trust")) || 42
-  );
-
-  const [humanity, setHumanity] = useState(
-    () => Number(localStorage.getItem("tatsulok-humanity")) || 55
-  );
-
-  const [player, setPlayer] = useState({
-    x: 50,
-    y: 82,
-  });
-
-  const [message, setMessage] = useState(
-    "Pumasok sa distrito. Hanapin ang evacuation center."
-  );
-
-  const [choiceOpen, setChoiceOpen] = useState(false);
-  const [missionComplete, setMissionComplete] = useState(false);
-  const [soundOn, setSoundOn] = useState(true);
-  const [showMap, setShowMap] = useState(false);
-  const [journalOpen, setJournalOpen] = useState(false);
-
-  const [inventory, setInventory] = useState({
-    medkit: 3,
-    water: 2,
-    supplies: 1,
-  });
-
-  const [camera, setCamera] = useState({
-    yaw: 0,
-    pitch: 0,
-  });
-
-  const joystickRef = useRef(null);
-  const joystickActive = useRef(false);
-
-  const selectedCharacter = useMemo(
-    () => characters.find((c) => c.id === selectedId) || characters[10],
-    [selectedId]
-  );
-
-  const currentMission =
-    missions.find((m) => m.id === mission) || missions[0];
-
-  const currentObjective = locations.find(
-    (location) => location.id === currentMission.objective
-  );
-
-  const filteredCharacters =
-    activeFaction === "LAHAT"
-      ? characters
-      : characters.filter((c) => c.faction === activeFaction);
-
-  /* =========================================================
-     LOCAL SAVE
-     ========================================================= */
-
-  useEffect(() => {
-    localStorage.setItem("tatsulok-player", playerName);
-  }, [playerName]);
-
-  useEffect(() => {
-    localStorage.setItem("tatsulok-character", selectedId);
-  }, [selectedId]);
-
-  useEffect(() => {
-    localStorage.setItem("tatsulok-screen", screen);
-  }, [screen]);
-
-  useEffect(() => {
-    localStorage.setItem("tatsulok-mission", mission);
-    localStorage.setItem("tatsulok-health", health);
-    localStorage.setItem("tatsulok-power", power);
-    localStorage.setItem("tatsulok-trust", trust);
-    localStorage.setItem("tatsulok-humanity", humanity);
-  }, [mission, health, power, trust, humanity]);
-
-  /* =========================================================
-     KEYBOARD MOVEMENT
-     ========================================================= */
-
-  useEffect(() => {
-    function handleKeyDown(event) {
-      if (screen !== "mission") return;
-      if (choiceOpen || showMap || journalOpen) return;
-
-      const key = event.key.toLowerCase();
-
-      if (key === "w" || key === "arrowup") {
-        event.preventDefault();
-        movePlayer(0, -2.5);
-      }
-
-      if (key === "s" || key === "arrowdown") {
-        event.preventDefault();
-        movePlayer(0, 2.5);
-      }
-
-      if (key === "a" || key === "arrowleft") {
-        event.preventDefault();
-        movePlayer(-2.5, 0);
-      }
-
-      if (key === "d" || key === "arrowright") {
-        event.preventDefault();
-        movePlayer(2.5, 0);
-      }
-
-      if (key === "e" || key === " ") {
-        event.preventDefault();
-        interactObjective();
-      }
-
-      if (key === "m") {
-        setShowMap(true);
-      }
-
-      if (key === "j") {
-        setJournalOpen(true);
-      }
-
-      if (key === "escape") {
-        setChoiceOpen(false);
-        setShowMap(false);
-        setJournalOpen(false);
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  });
-
-  /* =========================================================
-     PLAYER MOVEMENT
-     ========================================================= */
-
-  function movePlayer(dx, dy) {
-    setPlayer((current) => ({
-      x: Math.max(4, Math.min(96, current.x + dx)),
-      y: Math.max(7, Math.min(94, current.y + dy)),
-    }));
-  }
-
-  function moveDirection(direction) {
-    if (choiceOpen || showMap || journalOpen) return;
-
-    if (direction === "up") movePlayer(0, -3);
-    if (direction === "down") movePlayer(0, 3);
-    if (direction === "left") movePlayer(-3, 0);
-    if (direction === "right") movePlayer(3, 0);
-  }
-
-  /* =========================================================
-     DISTANCE
-     ========================================================= */
-
-  function distanceToObjective() {
-    if (!currentObjective) return 999;
-
-    const dx = player.x - currentObjective.x;
-    const dy = player.y - currentObjective.y;
-
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-
-  /* =========================================================
-     INTERACTION
-     ========================================================= */
-
-  function interactObjective() {
-    if (choiceOpen) return;
-
-    const distance = distanceToObjective();
-
-    if (distance > 14) {
-      setMessage(
-        `Masyadong malayo. Lumapit pa sa ${currentObjective.name}.`
-      );
-      return;
-    }
-
-    setChoiceOpen(true);
-    setMessage(`Nasa ${currentObjective.name} ka na.`);
-  }
-
-  /* =========================================================
-     MISSION CHOICES
-     ========================================================= */
-
-  function makeChoice(choice) {
-    setChoiceOpen(false);
-
-    if (mission === 1) {
-      if (choice === "help") {
-        setHumanity((value) => Math.min(100, value + 15));
-        setTrust((value) => Math.min(100, value + 15));
-        setPower((value) => Math.max(0, value - 5));
-
-        setMessage(
-          "Tinulungan mo ang mga mamamayan. Tumaas ang tiwala at humanity."
-        );
-      }
-
-      if (choice === "control") {
-        setPower((value) => Math.min(100, value + 15));
-        setTrust((value) => Math.max(0, value - 10));
-
-        setMessage(
-          "Kinontrol mo ang distribution. Tumaas ang power ngunit bumaba ang trust."
-        );
-      }
-
-      if (choice === "leave") {
-        setHumanity((value) => Math.max(0, value - 15));
-        setMessage("Pinili mong huwag makialam.");
-      }
-    }
-
-    if (mission === 2) {
-      setInventory((items) => ({
-        ...items,
-        supplies: items.supplies + 2,
-      }));
-
-      setTrust((value) => Math.min(100, value + 8));
-
-      setMessage("Nakuha mo ang relief supplies.");
-    }
-
-    if (mission === 3) {
-      setPower((value) => Math.min(100, value + 8));
-      setTrust((value) => Math.min(100, value + 5));
-
-      setMessage("Nakuha mo ang dokumentong naglalantad sa sistema.");
-    }
-
-    if (mission === 4) {
-      setHumanity((value) => Math.min(100, value + 20));
-      setTrust((value) => Math.min(100, value + 12));
-
-      setMessage("Nabuksan ang evacuation route.");
-    }
-
-    setMissionComplete(true);
-  }
-
-  /* =========================================================
-     NEXT MISSION
-     ========================================================= */
-
-  function nextMission() {
-    if (mission >= 4) {
-      setScreen("dossier");
-      setMissionComplete(false);
-      return;
-    }
-
-    const next = mission + 1;
-
-    setMission(next);
-    setPlayer({ x: 50, y: 82 });
-    setMissionComplete(false);
-
-    const nextMissionData = missions.find((m) => m.id === next);
-
-    setMessage(nextMissionData.message);
-  }
-
-  /* =========================================================
-     RESET
-     ========================================================= */
-
-  function resetMission() {
-    setPlayer({ x: 50, y: 82 });
-    setMissionComplete(false);
-    setChoiceOpen(false);
-
-    const m = missions.find((item) => item.id === mission);
-
-    setMessage(m?.message || "Bumalik sa simula ng mission.");
-  }
-
-  /* =========================================================
-     NAVIGATION
-     ========================================================= */
-
-  function goBack() {
-    if (screen === "mission") {
-      setScreen("lobby");
-      setChoiceOpen(false);
-      setShowMap(false);
-      setJournalOpen(false);
-      return;
-    }
-
-    if (screen === "lobby") {
-      setScreen("world");
-      return;
-    }
-
-    if (screen === "characters") {
-      setScreen("lobby");
-      return;
-    }
-
-    if (screen === "dossier") {
-      setScreen("characters");
-      return;
-    }
-
-    if (screen === "factions") {
-      setScreen("world");
-      return;
-    }
-
-    setScreen("world");
-  }
-
-  function selectCharacter(id) {
-    setSelectedId(id);
-    setReady(false);
-  }
-
-  function toggleReady() {
-    if (!playerName.trim()) {
-      alert("Maglagay muna ng pangalan.");
-      return;
-    }
-
-    setReady((value) => !value);
-  }
-
-  function enterLobby() {
-    if (!playerName.trim()) {
-      alert("Maglagay muna ng pangalan.");
-      return;
-    }
-
-    setScreen("lobby");
-  }
-
-  function startMission() {
-    if (!playerName.trim()) {
-      alert("Maglagay muna ng pangalan.");
-      return;
-    }
-
-    if (!ready) {
-      alert("Pindutin muna ang READY.");
-      return;
-    }
-
-    setScreen("mission");
-    setMission(1);
-    setMissionComplete(false);
-    setChoiceOpen(false);
-    setShowMap(false);
-    setJournalOpen(false);
-    setPlayer({ x: 50, y: 82 });
-    setMessage(missions[0].message);
-  }
-
-  /* =========================================================
-     JOYSTICK
-     ========================================================= */
-
-  function handleJoystickStart(event) {
-    event.preventDefault();
-
-    joystickActive.current = true;
-
-    handleJoystickMove(event);
-  }
-
-  function handleJoystickMove(event) {
-    if (!joystickActive.current) return;
-
-    const touch =
-      event.touches?.[0] ||
-      event.changedTouches?.[0] ||
-      event;
-
-    if (!touch) return;
-
-    const rect = joystickRef.current?.getBoundingClientRect();
-
-    if (!rect) return;
-
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-
-    const dx = touch.clientX - centerX;
-    const dy = touch.clientY - centerY;
-
-    const max = rect.width * 0.34;
-
-    const normalizedX = Math.max(-1, Math.min(1, dx / max));
-    const normalizedY = Math.max(-1, Math.min(1, dy / max));
-
-    setPlayer((current) => ({
-      x: Math.max(
-        4,
-        Math.min(96, current.x + normalizedX * 1.8)
-      ),
-      y: Math.max(
-        7,
-        Math.min(94, current.y + normalizedY * 1.8)
-      ),
-    }));
-  }
-
-  function handleJoystickEnd() {
-    joystickActive.current = false;
-  }
-
-  /* =========================================================
-     CAMERA LOOK
-     ========================================================= */
-
-  function lookAround(direction) {
-    setCamera((current) => ({
-      ...current,
-      yaw:
-        direction === "left"
-          ? Math.max(-12, current.yaw - 3)
-          : Math.min(12, current.yaw + 3),
-    }));
-  }
-
-  /* =========================================================
-     WORLD SCREEN
-     ========================================================= */
-
-  if (screen === "world") {
-    return (
-      <div className="app">
-        <TopNav
-          screen={screen}
-          goBack={goBack}
-          setScreen={setScreen}
-          soundOn={soundOn}
-          setSoundOn={setSoundOn}
-        />
-
-        <main className="landing">
-          <div className="landing-glow" />
-
-          <div className="landing-content">
-            <div className="eyebrow">TATSULOK / LIVE DISTRICT</div>
-
-            <h1>
-              ANG DISTRICT
-              <br />
-              AY BUHAY.
-            </h1>
-
-            <p>
-              Isang interactive mission world kung saan bawat
-              galaw at bawat desisyon ay may epekto.
-            </p>
-
-            <div className="player-entry">
-              <label>OPERATIVE NAME</label>
-
-              <input
-                value={playerName}
-                onChange={(event) =>
-                  setPlayerName(event.target.value)
-                }
-                placeholder="Ilagay ang pangalan"
-              />
-            </div>
-
-            <button
-              className="gold-button large"
-              onClick={enterLobby}
-            >
-              ENTER DISTRICT
-            </button>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  /* =========================================================
-     LOBBY
-     ========================================================= */
-
-  if (screen === "lobby") {
-    return (
-      <div className="app">
-        <TopNav
-          screen={screen}
-          goBack={goBack}
-          setScreen={setScreen}
-          soundOn={soundOn}
-          setSoundOn={setSoundOn}
-        />
-
-        <main className="lobby-screen">
-          <section className="lobby-heading">
-            <div>
-              <span className="eyebrow">OPERATIVE SELECTION</span>
-
-              <h1>
-                PILIIN ANG
-                <br />
-                IYONG TAUHAN
-              </h1>
-            </div>
-
-            <div className="save-status">
-              ● SAVED LOCALLY
-            </div>
-          </section>
-
-          <section className="character-grid">
-            {characters.map((character) => (
-              <button
-                key={character.id}
-                className={`character-card ${
-                  selectedId === character.id
-                    ? "selected"
-                    : ""
-                }`}
-                onClick={() => selectCharacter(character.id)}
-              >
-                <div className="character-image-wrap">
-                  <img
-                    src={character.image}
-                    alt={character.name}
-                    onError={(event) => {
-                      event.currentTarget.style.opacity = "0";
-                    }}
-                  />
-
-                  <span className="character-index">
-                    {String(
-                      characters.indexOf(character) + 1
-                    ).padStart(2, "0")}
-                  </span>
-                </div>
-
-                <div className="character-info">
-                  <strong>{character.name}</strong>
-                  <span>{character.faction}</span>
-                </div>
-              </button>
-            ))}
-          </section>
-
-          <section className="selected-character">
-            <img
-              src={selectedCharacter.image}
-              alt={selectedCharacter.name}
-            />
-
-            <div className="selected-copy">
-              <span className="eyebrow">
-                SELECTED OPERATIVE
-              </span>
-
-              <h2>{selectedCharacter.name}</h2>
-
-              <p>{selectedCharacter.description}</p>
-
-              <div className="character-stats">
-                <span>{selectedCharacter.role}</span>
-                <span>{selectedCharacter.power}</span>
-                <span>{selectedCharacter.symbol}</span>
-              </div>
-            </div>
-
-            <div className="ready-panel">
-              <label>PLAYER</label>
-
-              <strong>
-                {playerName || "UNNAMED"}
-              </strong>
-
-              <button
-                className={`ready-button ${
-                  ready ? "active" : ""
-                }`}
-                onClick={toggleReady}
-              >
-                {ready ? "READY ✓" : "READY"}
-              </button>
-
-              <button
-                className="gold-button"
-                onClick={startMission}
-              >
-                START MISSION
-              </button>
-            </div>
-          </section>
-        </main>
-      </div>
-    );
-  }
-
-  /* =========================================================
-     CHARACTERS
-     ========================================================= */
-
-  if (screen === "characters") {
-    return (
-      <div className="app">
-        <TopNav
-          screen={screen}
-          goBack={goBack}
-          setScreen={setScreen}
-          soundOn={soundOn}
-          setSoundOn={setSoundOn}
-        />
-
-        <main className="characters-page">
-          <div className="page-header">
-            <span className="eyebrow">TATSULOK DATABASE</span>
-            <h1>CHARACTERS</h1>
-          </div>
-
-          <div className="faction-tabs">
-            {Object.keys(factions).map((faction) => (
-              <button
-                key={faction}
-                className={
-                  activeFaction === faction ? "active" : ""
-                }
-                onClick={() => setActiveFaction(faction)}
-              >
-                {faction}
-              </button>
-            ))}
-          </div>
-
-          <div className="character-grid large-grid">
-            {filteredCharacters.map((character) => (
-              <button
-                key={character.id}
-                className="character-card"
-                onClick={() => {
-                  setSelectedId(character.id);
-                  setScreen("dossier");
-                }}
-              >
-                <img
-                  src={character.image}
-                  alt={character.name}
-                />
-
-                <div className="character-info">
-                  <strong>{character.name}</strong>
-                  <span>{character.faction}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  /* =========================================================
-     DOSSIER
-     ========================================================= */
-
-  if (screen === "dossier") {
-    return (
-      <div className="app">
-        <TopNav
-          screen={screen}
-          goBack={goBack}
-          setScreen={setScreen}
-          soundOn={soundOn}
-          setSoundOn={setSoundOn}
-        />
-
-        <main className="dossier-page">
-          <section className="dossier-portrait">
-            <img
-              src={selectedCharacter.image}
-              alt={selectedCharacter.name}
-            />
-          </section>
-
-          <section className="dossier-copy">
-            <span className="eyebrow">
-              OPERATIVE DOSSIER
-            </span>
-
-            <h1>{selectedCharacter.name}</h1>
-
-            <h3>{selectedCharacter.faction}</h3>
-
-            <p className="dossier-tagline">
-              {selectedCharacter.tagline}
-            </p>
-
-            <p>{selectedCharacter.description}</p>
-
-            <div className="dossier-lines">
-              <div>
-                <span>ROLE</span>
-                <strong>{selectedCharacter.role}</strong>
-              </div>
-
-              <div>
-                <span>POWER</span>
-                <strong>{selectedCharacter.power}</strong>
-              </div>
-
-              <div>
-                <span>SYMBOL</span>
-                <strong>{selectedCharacter.symbol}</strong>
-              </div>
-            </div>
-
-            <button
-              className="gold-button"
-              onClick={() => setScreen("lobby")}
-            >
-              BACK TO LOBBY
-            </button>
-          </section>
-        </main>
-      </div>
-    );
-  }
-
-  /* =========================================================
-     FACTIONS
-     ========================================================= */
-
-  if (screen === "factions") {
-    return (
-      <div className="app">
-        <TopNav
-          screen={screen}
-          goBack={goBack}
-          setScreen={setScreen}
-          soundOn={soundOn}
-          setSoundOn={setSoundOn}
-        />
-
-        <main className="factions-page">
-          <div className="page-header">
-            <span className="eyebrow">POWER STRUCTURE</span>
-            <h1>FACTIONS</h1>
-          </div>
-
-          <div className="faction-overview">
-            <article className="faction-box panginoon">
-              <span>PANGINOON</span>
-              <h2>CONTROL</h2>
-              <p>
-                Yaman, impluwensiya at awtoridad.
-              </p>
-            </article>
-
-            <article className="faction-box malakas">
-              <span>MALAKAS</span>
-              <h2>INFLUENCE</h2>
-              <p>
-                Manipulasyon at posibilidad.
-              </p>
-            </article>
-
-            <article className="faction-box mabuti">
-              <span>MABUTI</span>
-              <h2>HUMANITY</h2>
-              <p>
-                Kaalaman, pag-asa at paninindigan.
-              </p>
-            </article>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  /* =========================================================
-     MISSION
-     ========================================================= */
-
-  return (
-    <div className="app mission-app">
-      <TopNav
-        screen={screen}
-        goBack={goBack}
-        setScreen={setScreen}
-        soundOn={soundOn}
-        setSoundOn={setSoundOn}
-      />
-
-      <main className="mission-layout">
-
-        {/* LEFT HUD */}
-
-        <aside className="mission-left hud-panel">
-          <div className="mission-title">
-            <span>MISSION {String(mission).padStart(2, "0")}</span>
-            <h1>{currentMission.title}</h1>
-            <p>{currentMission.description}</p>
-          </div>
-
-          <div className="operative-mini">
-            <img
-              src={selectedCharacter.image}
-              alt={selectedCharacter.name}
-            />
-
-            <div>
-              <span>OPERATIVE</span>
-              <strong>{selectedCharacter.name}</strong>
-              <small>{selectedCharacter.faction}</small>
-            </div>
-          </div>
-
-          <div className="feed">
-            <h3>MISSION FEED</h3>
-
-            <div className="feed-item">
-              <i />
-              Pumasok sa distrito.
-            </div>
-
-            <div className="feed-item">
-              <i />
-              May narinig na sigawan sa Market.
-            </div>
-
-            <div className="feed-item">
-              <i />
-              Relief Supplies may nawawala.
-            </div>
-          </div>
-
-          <div className="objectives">
-            <div className="section-heading">
-              <span>OBJECTIVES</span>
-              <b>
-                {missionComplete ? "1/1" : "0/1"}
-              </b>
-            </div>
-
-            <div
-              className={`objective-row ${
-                !missionComplete ? "active" : ""
-              }`}
-            >
-              <i />
-              {currentMission.title}
-            </div>
-          </div>
-        </aside>
-
-        {/* FIRST PERSON GAME */}
-
-        <section className="game-view">
-
-          <div
-            className="world-3d"
-            style={{
-              transform: `perspective(900px) rotateY(${camera.yaw}deg)`,
-            }}
-          >
-            <div className="sky" />
-
-            <div className="far-city">
-              {cityBuildings.map((building, index) => (
-                <div
-                  key={index}
-                  className="building"
-                  style={{
-                    left: `${building.x}%`,
-                    top: `${building.y}%`,
-                    width: `${building.w}%`,
-                    height: `${building.h}%`,
-                  }}
-                >
-                  <div className="building-face">
-                    <span>{building.name}</span>
-
-                    <div className="windows">
-                      {Array.from({ length: 12 }).map(
-                        (_, i) => (
-                          <i key={i} />
-                        )
-                      )}
-                    </div>
-                  </div>
-
-                  <div
-                    className="building-side"
-                    style={{
-                      transform: `translateX(${building.height}px) skewY(-12deg)`,
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-
-            <div className="road road-main" />
-            <div className="road road-cross" />
-            <div className="road road-diagonal" />
-
-            <div className="canal" />
-            <div className="bridge" />
-
-            <div className="street-lamp lamp-1" />
-            <div className="street-lamp lamp-2" />
-            <div className="street-lamp lamp-3" />
-
-            <div className="street-car car-1" />
-            <div className="street-car car-2" />
-            <div className="street-car car-3" />
-
-            {/* LANDMARKS */}
-
-            {locations.map((location) => {
-              const active =
-                location.id === currentMission.objective;
-
-              return (
-                <button
-                  key={location.id}
-                  className={`world-marker ${location.color} ${
-                    active ? "target" : ""
-                  }`}
-                  style={{
-                    left: `${location.x}%`,
-                    top: `${location.y}%`,
-                  }}
-                  onClick={() => {
-                    if (active) {
-                      interactObjective();
-                    } else {
-                      setMessage(
-                        `${location.name}: ${location.type}.`
-                      );
-                    }
-                  }}
-                >
-                  <span className="marker-icon">
-                    {location.icon}
-                  </span>
-
-                  <span className="marker-label">
-                    {location.name}
-                  </span>
-
-                  {active && (
-                    <small>
-                      {Math.round(
-                        distanceToObjective() * 1.6
-                      )}
-                      m
-                    </small>
-                  )}
-                </button>
-              );
-            })}
-
-            {/* PLAYER POSITION */}
-
-            <div
-              className="player-marker"
-              style={{
-                left: `${player.x}%`,
-                top: `${player.y}%`,
-              }}
-            >
-              <div className="player-shadow" />
-              <div className="player-body" />
-            </div>
-
-            {/* CROSSHAIR */}
-
-            <div className="crosshair">
-              <span />
-              <span />
-              <span />
-              <span />
-            </div>
-
-            {/* WEAPON */}
-
-            <div className="weapon">
-              <div className="weapon-hand" />
-              <div className="weapon-body" />
-              <div className="weapon-barrel" />
-            </div>
-
-            {/* TARGET MESSAGE */}
-
-            <div className="target-distance">
-              <strong>
-                {currentObjective?.name}
-              </strong>
-
-              <span>
-                {Math.round(distanceToObjective() * 1.6)}m
-              </span>
-            </div>
-
-            {/* STATUS MESSAGE */}
-
-            <div className="game-message">
-              {message}
-            </div>
-          </div>
-
-          {/* MOBILE CONTROLS */}
-
-          <div className="touch-controls">
-
-            <div
-              ref={joystickRef}
-              className="joystick"
-              onTouchStart={handleJoystickStart}
-              onTouchMove={handleJoystickMove}
-              onTouchEnd={handleJoystickEnd}
-              onTouchCancel={handleJoystickEnd}
-            >
-              <div className="joystick-stick" />
-            </div>
-
-            <div className="touch-actions">
-
-              <button
-                className="touch-look"
-                onClick={() => lookAround("left")}
-              >
-                ◀
-              </button>
-
-              <button
-                className="interact-button"
-                onClick={interactObjective}
-              >
-                <strong>E</strong>
-                <span>INTERACT</span>
-              </button>
-
-              <button
-                className="touch-look"
-                onClick={() => lookAround("right")}
-              >
-                ▶
-              </button>
-
-            </div>
-          </div>
-
-          {/* DESKTOP CONTROLS */}
-
-          <div className="desktop-controls">
-            <span>WASD / ARROWS — MOVE</span>
-            <span>E — INTERACT</span>
-            <span>M — MAP</span>
-            <span>J — JOURNAL</span>
-          </div>
-
-          {/* WEAPON HUD */}
-
-          <div className="weapon-hud">
-            <div className="weapon-slot active">
-              <span>PRIMARY</span>
-              <strong>▰</strong>
-              <b>30 / 120</b>
-            </div>
-
-            <div className="weapon-slot">
-              <span>SECONDARY</span>
-              <strong>▱</strong>
-              <b>12 / 36</b>
-            </div>
-
-            <div className="weapon-slot">
-              <span>ITEM</span>
-              <strong>◇</strong>
-              <b>2</b>
-            </div>
-          </div>
-        </section>
-
-        {/* RIGHT HUD */}
-
-        <aside className="mission-right hud-panel">
-
-          <div className="right-box">
-            <h3>CONTROLS</h3>
-
-            <div className="keyboard">
-              <button onClick={() => moveDirection("up")}>
-                W
-              </button>
-
-              <div>
-                <button
-                  onClick={() => moveDirection("left")}
-                >
-                  A
-                </button>
-
-                <button
-                  onClick={() => moveDirection("down")}
-                >
-                  S
-                </button>
-
-                <button
-                  onClick={() => moveDirection("right")}
-                >
-                  D
-                </button>
-              </div>
-
-              <button
-                className="key-wide"
-                onClick={interactObjective}
-              >
-                E &nbsp; INTERACT
-              </button>
-            </div>
-          </div>
-
-          <div className="right-box">
-            <h3>STATS</h3>
-
-            <Stat
-              label="HEALTH"
-              value={health}
-              type="health"
-            />
-
-            <Stat
-              label="POWER"
-              value={power}
-              type="power"
-            />
-
-            <Stat
-              label="TRUST"
-              value={trust}
-              type="trust"
-            />
-
-            <Stat
-              label="HUMANITY"
-              value={humanity}
-              type="humanity"
-            />
-          </div>
-
-          <div className="right-box">
-            <h3>INVENTORY</h3>
-
-            <div className="inventory">
-              <div>
-                <strong>✚</strong>
-                <span>x{inventory.medkit}</span>
-              </div>
-
-              <div>
-                <strong>♢</strong>
-                <span>x{inventory.water}</span>
-              </div>
-
-              <div>
-                <strong>▣</strong>
-                <span>x{inventory.supplies}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="right-box shortcuts">
-            <div>
-              MOVE
-              <span>W A S D</span>
-            </div>
-
-            <div>
-              INTERACT
-              <span>E</span>
-            </div>
-
-            <div>
-              MAP
-              <span>M</span>
-            </div>
-
-            <div>
-              JOURNAL
-              <span>J</span>
-            </div>
-          </div>
-
-          <button
-            className="reset-button"
-            onClick={resetMission}
-          >
-            RESET MISSION
-          </button>
-        </aside>
-      </main>
-
-      {/* MAP */}
-
-      {showMap && (
-        <div className="modal-layer">
-          <div className="map-modal">
-            <button
-              className="modal-close"
-              onClick={() => setShowMap(false)}
-            >
-              ×
-            </button>
-
-            <span className="eyebrow">
-              DISTRICT 07
-            </span>
-
-            <h2>TACTICAL MAP</h2>
-
-            <div className="mini-map-large">
-              {locations.map((location) => (
-                <button
-                  key={location.id}
-                  style={{
-                    left: `${location.x}%`,
-                    top: `${location.y}%`,
-                  }}
-                  className={
-                    location.id === currentMission.objective
-                      ? "map-target"
-                      : ""
-                  }
-                  onClick={() => {
-                    if (
-                      location.id ===
-                      currentMission.objective
-                    ) {
-                      setShowMap(false);
-                      interactObjective();
-                    }
-                  }}
-                >
-                  ●
-                </button>
-              ))}
-
-              <div
-                className="map-player"
-                style={{
-                  left: `${player.x}%`,
-                  top: `${player.y}%`,
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* JOURNAL */}
-
-      {journalOpen && (
-        <div className="modal-layer">
-          <div className="journal-modal">
-            <button
-              className="modal-close"
-              onClick={() => setJournalOpen(false)}
-            >
-              ×
-            </button>
-
-            <span className="eyebrow">
-              OPERATIVE JOURNAL
-            </span>
-
-            <h2>MISSION {String(mission).padStart(2, "0")}</h2>
-
-            <p>{currentMission.description}</p>
-
-            <div className="journal-stat">
-              <span>POWER</span>
-              <strong>{power}</strong>
-            </div>
-
-            <div className="journal-stat">
-              <span>TRUST</span>
-              <strong>{trust}</strong>
-            </div>
-
-            <div className="journal-stat">
-              <span>HUMANITY</span>
-              <strong>{humanity}</strong>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CHOICE */}
-
-      {choiceOpen && (
-        <div className="modal-layer choice-layer">
-          <div className="choice-modal">
-
-            <span className="eyebrow">
-              DECISION POINT
-            </span>
-
-            <h2>{currentMission.title}</h2>
-
-            <p>{message}</p>
-
-            {mission === 1 && (
-              <>
-                <button
-                  className="choice green-choice"
-                  onClick={() => makeChoice("help")}
-                >
-                  <strong>A</strong>
-                  <span>
-                    GAMITIN ANG SARILING YAMAN
-                    <small>
-                      para sa evacuation
-                    </small>
-                  </span>
-                </button>
-
-                <button
-                  className="choice gold-choice"
-                  onClick={() => makeChoice("control")}
-                >
-                  <strong>B</strong>
-                  <span>
-                    KONTROLIN ANG RELIEF
-                    <small>
-                      distribution ng suplay
-                    </small>
-                  </span>
-                </button>
-
-                <button
-                  className="choice red-choice"
-                  onClick={() => makeChoice("leave")}
-                >
-                  <strong>C</strong>
-                  <span>
-                    HUWAG MAKIALAM
-                    <small>
-                      iwan ang distrito
-                    </small>
-                  </span>
-                </button>
-              </>
-            )}
-
-            {mission > 1 && (
-              <button
-                className="choice green-choice"
-                onClick={() => makeChoice("continue")}
-              >
-                <strong>✓</strong>
-                <span>
-                  IPAGPATULOY
-                  <small>
-                    Tapusin ang objective
-                  </small>
-                </span>
-              </button>
-            )}
-
-            <button
-              className="cancel-choice"
-              onClick={() => setChoiceOpen(false)}
-            >
-              CANCEL
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MISSION COMPLETE */}
-
-      {missionComplete && (
-        <div className="mission-complete">
-          <div className="complete-card">
-            <span className="eyebrow">
-              OBJECTIVE COMPLETE
-            </span>
-
-            <h2>{currentMission.title}</h2>
-
-            <div className="complete-stats">
-              <span>
-                POWER <b>{power}</b>
-              </span>
-
-              <span>
-                TRUST <b>{trust}</b>
-              </span>
-
-              <span>
-                HUMANITY <b>{humanity}</b>
-              </span>
-            </div>
-
-            <button
-              className="gold-button"
-              onClick={nextMission}
-            >
-              {mission >= 4
-                ? "VIEW ENDING"
-                : "NEXT MISSION →"}
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+function clamp(value) {
+  return Math.max(0, Math.min(100, value));
 }
 
 /* =========================================================
-   TOP NAV
-   ========================================================= */
+   UI
+========================================================= */
 
-function TopNav({
-  screen,
-  goBack,
-  setScreen,
-  soundOn,
-  setSoundOn,
-}) {
+function Header({ active, onNavigate, sound, setSound }) {
   return (
-    <header className="top-nav">
-
-      <div className="brand">
-        <div className="brand-mark">△</div>
-
-        <div>
-          <strong>TATSULOK</strong>
-          <small>LIVE DISTRICT</small>
-        </div>
-      </div>
+    <header className="topbar">
+      <button className="brand" onClick={() => onNavigate("lobby")}>
+        <span className="brand-mark">△</span>
+        <span>TATSULOK</span>
+      </button>
 
       <nav>
-        <button
-          className={screen === "world" ? "active" : ""}
-          onClick={() => setScreen("world")}
-        >
-          WORLD
-        </button>
-
-        <button
-          className={screen === "lobby" ? "active" : ""}
-          onClick={() => setScreen("lobby")}
-        >
-          LOBBY
-        </button>
-
-        <button
-          className={
-            screen === "characters" ? "active" : ""
-          }
-          onClick={() => setScreen("characters")}
-        >
-          CHARACTERS
-        </button>
-
-        <button
-          className={screen === "dossier" ? "active" : ""}
-          onClick={() => setScreen("dossier")}
-        >
-          DOSSIER
-        </button>
-
-        <button
-          className={screen === "factions" ? "active" : ""}
-          onClick={() => setScreen("factions")}
-        >
-          FACTIONS
-        </button>
-
-        <button
-          className={screen === "mission" ? "active" : ""}
-          onClick={() => setScreen("mission")}
-        >
-          MISSION
-        </button>
+        {["WORLD", "LOBBY", "CHARACTERS", "DOSSIER", "FACTIONS", "MISSION"].map(
+          (item) => (
+            <button
+              key={item}
+              className={active === item ? "active" : ""}
+              onClick={() =>
+                onNavigate(
+                  item === "MISSION"
+                    ? "mission"
+                    : item === "CHARACTERS"
+                    ? "characters"
+                    : "lobby"
+                )
+              }
+            >
+              {item}
+            </button>
+          )
+        )}
       </nav>
 
-      <div className="nav-actions">
-
-        {screen !== "world" && (
-          <button
-            className="back-button"
-            onClick={goBack}
-          >
-            ← BACK
-          </button>
-        )}
+      <div className="top-actions">
+        <span className="saved">● SAVED LOCALLY</span>
 
         <button
-          className="sound-button"
-          onClick={() => setSoundOn((value) => !value)}
+          onClick={() => setSound(!sound)}
+          aria-label="sound"
+          className="icon-button"
         >
-          {soundOn ? "♪" : "×"}
+          {sound ? "🔊" : "🔇"}
+        </button>
+
+        <button
+          onClick={() => onNavigate("lobby")}
+          aria-label="back to lobby"
+          className="icon-button"
+        >
+          ⌂
         </button>
       </div>
     </header>
   );
 }
 
-/* =========================================================
-   STAT
-   ========================================================= */
-
-function Stat({ label, value, type }) {
+function StatBar({ label, value }) {
   return (
-    <div className="stat">
-
-      <div className="stat-label">
-        <span>{label}</span>
-        <b>{value}%</b>
+    <div className="statbar">
+      <span>{label}</span>
+      <div>
+        <i style={{ width: `${value}%` }} />
       </div>
-
-      <div className="stat-track">
-        <div
-          className={`stat-fill ${type}`}
-          style={{ width: `${value}%` }}
-        />
-      </div>
-
+      <b>{value}</b>
     </div>
   );
 }
 
-export default App;
+/* =========================================================
+   3D DISTRICT ENGINE
+========================================================= */
+
+function createMaterial(color, roughness = 0.8) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness,
+    metalness: 0.05,
+  });
+}
+
+function createBuilding(scene, x, z, w, h, d, color, windows = true) {
+  const group = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    createMaterial(color)
+  );
+
+  body.position.y = h / 2;
+  group.add(body);
+
+  if (windows) {
+    const windowMaterial = new THREE.MeshStandardMaterial({
+      color: 0x88a7a8,
+      emissive: 0x243f40,
+      emissiveIntensity: 0.4,
+      roughness: 0.25,
+    });
+
+    const rows = Math.max(2, Math.floor(h / 2.4));
+    const cols = Math.max(2, Math.floor(w / 2));
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const window = new THREE.Mesh(
+          new THREE.BoxGeometry(0.65, 0.75, 0.05),
+          windowMaterial
+        );
+
+        const px =
+          -w / 2 +
+          1.1 +
+          col * ((w - 2.2) / Math.max(1, cols - 1));
+
+        const py = 1.5 + row * 2.15;
+
+        window.position.set(px, py, d / 2 + 0.03);
+        group.add(window);
+      }
+    }
+  }
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+
+  return group;
+}
+
+function createStreetLight(scene, x, z) {
+  const group = new THREE.Group();
+
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.07, 0.1, 4.3, 8),
+    createMaterial(0x202528)
+  );
+
+  pole.position.y = 2.15;
+  group.add(pole);
+
+  const arm = new THREE.Mesh(
+    new THREE.BoxGeometry(0.9, 0.08, 0.08),
+    createMaterial(0x202528)
+  );
+
+  arm.position.set(0.4, 4.05, 0);
+  group.add(arm);
+
+  const bulb = new THREE.Mesh(
+    new THREE.SphereGeometry(0.16, 12, 12),
+    new THREE.MeshStandardMaterial({
+      color: 0xffd477,
+      emissive: 0xffa62b,
+      emissiveIntensity: 2.2,
+    })
+  );
+
+  bulb.position.set(0.8, 3.95, 0);
+  group.add(bulb);
+
+  const light = new THREE.PointLight(0xffb84c, 1.2, 8);
+  light.position.set(0.8, 3.8, 0);
+  group.add(light);
+
+  group.position.set(x, 0, z);
+  scene.add(group);
+}
+
+function createCar(scene, x, z, rotation = 0) {
+  const group = new THREE.Group();
+
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(2.1, 0.55, 4),
+    createMaterial(0x333a3d)
+  );
+
+  body.position.y = 0.55;
+  group.add(body);
+
+  const cabin = new THREE.Mesh(
+    new THREE.BoxGeometry(1.65, 0.55, 1.9),
+    createMaterial(0x1d272a)
+  );
+
+  cabin.position.y = 1.05;
+  cabin.position.z = -0.15;
+  group.add(cabin);
+
+  const wheelMaterial = createMaterial(0x111314);
+
+  [-1.25, 1.25].forEach((zWheel) => {
+    [-1.05, 1.05].forEach((xWheel) => {
+      const wheel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.34, 0.34, 0.22, 12),
+        wheelMaterial
+      );
+
+      wheel.rotation.z = Math.PI / 2;
+      wheel.position.set(xWheel, 0.35, zWheel);
+      group.add(wheel);
+    });
+  });
+
+  group.position.set(x, 0, z);
+  group.rotation.y = rotation;
+
+  scene.add(group);
+}
+
+function createObjectiveMarker(scene, position) {
+  const group = new THREE.Group();
+
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(1.1, 0.12, 12, 32),
+    new THREE.MeshBasicMaterial({
+      color: 0xffc857,
+      transparent: true,
+      opacity: 0.95,
+    })
+  );
+
+  ring.rotation.x = Math.PI / 2;
+  ring.position.y = 0.05;
+  group.add(ring);
+
+  const vertical = new THREE.Mesh(
+    new THREE.ConeGeometry(0.55, 1.15, 4),
+    new THREE.MeshBasicMaterial({
+      color: 0xffc857,
+      transparent: true,
+      opacity: 0.95,
+    })
+  );
+
+  vertical.position.y = 3.2;
+  group.add(vertical);
+
+  const light = new THREE.PointLight(0xffb52e, 3, 12);
+  light.position.y = 2.5;
+  group.add(light);
+
+  group.position.copy(position);
+
+  scene.add(group);
+
+  return group;
+}
+
+function createDistrict(scene, mission) {
+  const world = new THREE.Group();
+  scene.add(world);
+
+  /* Ground */
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(180, 180),
+    createMaterial(mission.scene === "flood" ? 0x27383b : 0x24292a)
+  );
+
+  ground.rotation.x = -Math.PI / 2;
+  world.add(ground);
+
+  /* Main road */
+  const road = new THREE.Mesh(
+    new THREE.PlaneGeometry(13, 160),
+    createMaterial(0x15191a)
+  );
+
+  road.rotation.x = -Math.PI / 2;
+  road.position.y = 0.012;
+  world.add(road);
+
+  /* Side roads */
+  [-32, 4, 39].forEach((z) => {
+    const sideRoad = new THREE.Mesh(
+      new THREE.PlaneGeometry(160, 10),
+      createMaterial(0x171b1c)
+    );
+
+    sideRoad.rotation.x = -Math.PI / 2;
+    sideRoad.position.set(0, 0.014, z);
+    world.add(sideRoad);
+  });
+
+  /* Sidewalks */
+  [-9, 9].forEach((x) => {
+    const sidewalk = new THREE.Mesh(
+      new THREE.BoxGeometry(3, 0.25, 160),
+      createMaterial(0x575a58)
+    );
+
+    sidewalk.position.set(x, 0.12, 0);
+    world.add(sidewalk);
+  });
+
+  /* Buildings */
+  createBuilding(world, -23, -23, 18, 15, 22, 0x5a5148);
+  createBuilding(world, 23, -23, 19, 20, 20, 0x41494a);
+  createBuilding(world, -24, 15, 20, 12, 25, 0x554c44);
+  createBuilding(world, 25, 16, 21, 25, 25, 0x353c3e);
+  createBuilding(world, -27, 52, 20, 18, 25, 0x4b4640);
+  createBuilding(world, 27, 51, 22, 14, 24, 0x55595a);
+
+  /* Distant towers */
+  createBuilding(world, -52, 22, 15, 32, 18, 0x303536);
+  createBuilding(world, 52, 29, 16, 38, 18, 0x292e30);
+
+  /* Street furniture */
+  [-7, 7].forEach((x) => {
+    [-28, 4, 37].forEach((z) => {
+      createStreetLight(world, x, z);
+    });
+  });
+
+  /* Cars / debris */
+  createCar(world, -3.4, -16, Math.PI / 2);
+  createCar(world, 3.4, 20, -Math.PI / 2);
+  createCar(world, -3, 47, Math.PI / 2);
+
+  const debrisMaterial = createMaterial(0x68625a);
+
+  for (let i = 0; i < 13; i++) {
+    const debris = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        0.35 + Math.random() * 0.8,
+        0.2 + Math.random() * 0.45,
+        0.35 + Math.random() * 0.8
+      ),
+      debrisMaterial
+    );
+
+    debris.position.set(
+      (Math.random() - 0.5) * 10,
+      0.25,
+      -55 + Math.random() * 110
+    );
+
+    debris.rotation.y = Math.random() * Math.PI;
+    world.add(debris);
+  }
+
+  /* Flood water */
+  if (mission.scene === "flood") {
+    const water = new THREE.Mesh(
+      new THREE.PlaneGeometry(160, 160),
+      new THREE.MeshStandardMaterial({
+        color: 0x244a55,
+        transparent: true,
+        opacity: 0.52,
+        roughness: 0.2,
+        metalness: 0.05,
+      })
+    );
+
+    water.rotation.x = -Math.PI / 2;
+    water.position.y = 0.34;
+    world.add(water);
+  }
+
+  /* Objective */
+  const objectivePositions = {
+    flood: new THREE.Vector3(0, 0, -72),
+    quake: new THREE.Vector3(0, 0, -67),
+    corruption: new THREE.Vector3(0, 0, -62),
+    tower: new THREE.Vector3(0, 0, -58),
+  };
+
+  const objective = createObjectiveMarker(
+    world,
+    objectivePositions[mission.scene] || objectivePositions.flood
+  );
+
+  return {
+    world,
+    objective,
+  };
+}
+
+/* =========================================================
+   FIRST-PERSON 3D COMPONENT
+========================================================= */
+
+function FirstPersonDistrict({
+  mission,
+  onNearObjective,
+  interactionRequested,
+  onInteractionConsumed,
+}) {
+  const mountRef = useRef(null);
+  const stateRef = useRef({
+    keys: {},
+    yaw: 0,
+    pitch: 0,
+    moving: false,
+    joystickX: 0,
+    joystickY: 0,
+    touchLook: false,
+    lastTouchX: 0,
+    lastTouchY: 0,
+  });
+
+  useEffect(() => {
+    if (!mountRef.current) return;
+
+    const container = mountRef.current;
+
+    const scene = new THREE.Scene();
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: "high-performance",
+    });
+
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.7));
+    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+
+    container.appendChild(renderer.domElement);
+
+    const camera = new THREE.PerspectiveCamera(
+      70,
+      container.clientWidth / container.clientHeight,
+      0.05,
+      250
+    );
+
+    camera.position.set(0, 1.65, 19);
+    camera.rotation.order = "YXZ";
+
+    /* Lighting */
+    scene.background = new THREE.Color(
+      mission.scene === "flood" ? 0x102025 : 0x101416
+    );
+
+    const ambient = new THREE.HemisphereLight(
+      0x8a9a9b,
+      0x101314,
+      1.25
+    );
+
+    scene.add(ambient);
+
+    const moon = new THREE.DirectionalLight(0xd6dedc, 1.35);
+    moon.position.set(-30, 50, 15);
+    moon.castShadow = true;
+
+    scene.add(moon);
+
+    const district = createDistrict(scene, mission);
+
+    /* Fog creates real depth */
+    scene.fog = new THREE.Fog(
+      mission.scene === "flood" ? 0x102025 : 0x101416,
+      24,
+      125
+    );
+
+    const state = stateRef.current;
+
+    const onKeyDown = (e) => {
+      state.keys[e.code] = true;
+
+      if (
+        ["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(
+          e.code
+        )
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    const onKeyUp = (e) => {
+      state.keys[e.code] = false;
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+
+    let animationId;
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+      animationId = requestAnimationFrame(animate);
+
+      const delta = Math.min(clock.getDelta(), 0.05);
+
+      const forward =
+        (state.keys.KeyW || state.keys.ArrowUp ? 1 : 0) +
+        (state.keys.KeyS || state.keys.ArrowDown ? -1 : 0);
+
+      const strafe =
+        (state.keys.KeyD || state.keys.ArrowRight ? 1 : 0) +
+        (state.keys.KeyA || state.keys.ArrowLeft ? -1 : 0);
+
+      const moveForward = forward - state.joystickY;
+      const moveStrafe = strafe + state.joystickX;
+
+      const speed = state.keys.ShiftLeft || state.keys.ShiftRight ? 9 : 5.5;
+
+      const direction = new THREE.Vector3();
+
+      direction.z = -moveForward;
+      direction.x = moveStrafe;
+
+      if (direction.lengthSq() > 1) {
+        direction.normalize();
+      }
+
+      direction.applyAxisAngle(
+        new THREE.Vector3(0, 1, 0),
+        state.yaw
+      );
+
+      camera.position.x += direction.x * speed * delta;
+      camera.position.z += direction.z * speed * delta;
+
+      /* Player boundaries */
+      camera.position.x = THREE.MathUtils.clamp(
+        camera.position.x,
+        -7.2,
+        7.2
+      );
+
+      camera.position.z = THREE.MathUtils.clamp(
+        camera.position.z,
+        -82,
+        22
+      );
+
+      camera.position.y = 1.65;
+
+      camera.rotation.y = state.yaw;
+      camera.rotation.x = state.pitch;
+
+      /* Objective distance */
+      const distance = camera.position.distanceTo(
+        district.objective.position
+      );
+
+      onNearObjective(distance);
+
+      /* Floating objective marker */
+      district.objective.rotation.y += delta * 0.9;
+
+      district.objective.children.forEach((child, index) => {
+        if (index === 0) {
+          const pulse = 1 + Math.sin(performance.now() * 0.004) * 0.1;
+          child.scale.setScalar(pulse);
+        }
+
+        if (index === 1) {
+          child.position.y =
+            3.1 + Math.sin(performance.now() * 0.003) * 0.25;
+        }
+      });
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    const resize = () => {
+      if (!container.clientWidth || !container.clientHeight) return;
+
+      camera.aspect =
+        container.clientWidth / container.clientHeight;
+
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(
+        container.clientWidth,
+        container.clientHeight
+      );
+    };
+
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(container);
+
+    return () => {
+      cancelAnimationFrame(animationId);
+
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+
+      resizeObserver.disconnect();
+
+      district.world.traverse((object) => {
+        if (object.geometry) object.geometry.dispose();
+
+        if (object.material) {
+          if (Array.isArray(object.material)) {
+            object.material.forEach((m) => m.dispose());
+          } else {
+            object.material.dispose();
+          }
+        }
+      });
+
+      renderer.dispose();
+
+      if (renderer.domElement.parentNode) {
+        renderer.domElement.parentNode.removeChild(
+          renderer.domElement
+        );
+      }
+    };
+  }, [mission]);
+
+  useEffect(() => {
+    const state = stateRef.current;
+
+    if (!interactionRequested) return;
+
+    /* Interaction is intentionally handled by parent UI.
+       This effect exists so the interaction request can be
+       consumed cleanly when the player is in range. */
+
+    onInteractionConsumed();
+  }, [interactionRequested, onInteractionConsumed]);
+
+  function joystickStart(e) {
+    e.preventDefault();
+
+    const touch = e.touches?.[0] || e;
+
+    stateRef.current.joystickStartX = touch.clientX;
+    stateRef.current.joystickStartY = touch.clientY;
+  }
+
+  function joystickMove(e) {
+    e.preventDefault();
+
+    const touch = e.touches?.[0] || e;
+
+    const state = stateRef.current;
+
+    const dx = touch.clientX - state.joystickStartX;
+    const dy = touch.clientY - state.joystickStartY;
+
+    const max = 48;
+
+    state.joystickX = THREE.MathUtils.clamp(dx / max, -1, 1);
+    state.joystickY = THREE.MathUtils.clamp(dy / max, -1, 1);
+  }
+
+  function joystickEnd(e) {
+    e.preventDefault();
+
+    stateRef.current.joystickX = 0;
+    stateRef.current.joystickY = 0;
+  }
+
+  function lookStart(e) {
+    if (e.touches?.length !== 1) return;
+
+    stateRef.current.touchLook = true;
+    stateRef.current.lastTouchX = e.touches[0].clientX;
+    stateRef.current.lastTouchY = e.touches[0].clientY;
+  }
+
+  function lookMove(e) {
+    if (!stateRef.current.touchLook || !e.touches?.length) return;
+
+    const touch = e.touches[0];
+
+    const dx = touch.clientX - stateRef.current.lastTouchX;
+    const dy = touch.clientY - stateRef.current.lastTouchY;
+
+    stateRef.current.yaw -= dx * 0.004;
+    stateRef.current.pitch -= dy * 0.003;
+
+    stateRef.current.pitch = THREE.MathUtils.clamp(
+      stateRef.current.pitch,
+      -1.1,
+      1.1
+    );
+
+    stateRef.current.lastTouchX = touch.clientX;
+    stateRef.current.lastTouchY = touch.clientY;
+  }
+
+  function lookEnd() {
+    stateRef.current.touchLook = false;
+  }
+
+  return (
+    <div
+      className="three-district"
+      ref={mountRef}
+      onTouchStart={lookStart}
+      onTouchMove={lookMove}
+      onTouchEnd={lookEnd}
+    >
+      <div className="touch-look-hint">
+        DRAG TO LOOK
+      </div>
+
+      <div
+        className="mobile-joystick"
+        onTouchStart={joystickStart}
+        onTouchMove={joystickMove}
+        onTouchEnd={joystickEnd}
+      >
+        <div className="joystick-base">
+          <div className="joystick-knob" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   MISSION SCREEN
+========================================================= */
+
+function MissionScreen({
+  mission,
+  character,
+  stats,
+  setStats,
+  playerName,
+  missionIndex,
+  setMissionIndex,
+  setScreen,
+}) {
+  const [distance, setDistance] = useState(74);
+  const [choice, setChoice] = useState(null);
+  const [dialogueOpen, setDialogueOpen] = useState(false);
+  const [flash, setFlash] = useState("");
+
+  const inRange = distance <= 3.2;
+
+  useEffect(() => {
+    setChoice(null);
+    setDialogueOpen(false);
+    setDistance(74);
+  }, [missionIndex]);
+
+  function handleChoice(selected) {
+    if (choice) return;
+
+    setChoice(selected);
+
+    setStats((current) => {
+      const next = { ...current };
+
+      Object.entries(selected.effects).forEach(([key, amount]) => {
+        next[key] = clamp(next[key] + amount);
+      });
+
+      return next;
+    });
+
+    setFlash(`DESISYON ${selected.id} — NAKATAPOS.`);
+  }
+
+  function nextMission() {
+    if (missionIndex >= missions.length - 1) {
+      setScreen("ending");
+      return;
+    }
+
+    setMissionIndex((index) => index + 1);
+  }
+
+  function interact() {
+    if (!inRange) {
+      setFlash("LUMAPIT PA SA OBJECTIVE.");
+      return;
+    }
+
+    setDialogueOpen(true);
+    setFlash("");
+  }
+
+  return (
+    <div className="app mission-app">
+      <Header
+        active="MISSION"
+        onNavigate={setScreen}
+        sound={true}
+        setSound={() => {}}
+      />
+
+      <div className="mission-world">
+
+        {/* 3D WORLD */}
+        <FirstPersonDistrict
+          mission={mission}
+          onNearObjective={(meters) => {
+            setDistance(Math.max(0, meters));
+          }}
+          interactionRequested={false}
+          onInteractionConsumed={() => {}}
+        />
+
+        {/* VIGNETTE */}
+        <div className="fps-vignette" />
+
+        {/* TOP MISSION INFO */}
+        <div className="fps-top">
+          <div>
+            <div className="eyebrow">
+              MISSION {String(mission.id).padStart(2, "0")}
+            </div>
+
+            <h1>{mission.title}</h1>
+
+            <p>{mission.location}</p>
+          </div>
+
+          <div className="objective-distance">
+            <span>OBJECTIVE</span>
+            <b>{Math.round(distance)}m</b>
+          </div>
+        </div>
+
+        {/* WORLD OBJECTIVE MARKER */}
+        <div
+          className={`world-objective ${
+            inRange ? "near" : ""
+          }`}
+        >
+          <div className="objective-beacon">◆</div>
+
+          <div className="objective-card">
+            <span>OBJECTIVE</span>
+            <strong>{mission.objective}</strong>
+            <small>{Math.round(distance)}m</small>
+          </div>
+        </div>
+
+        {/* CROSSHAIR */}
+        <div className="crosshair">
+          <span />
+          <i />
+        </div>
+
+        {/* LEFT HUD */}
+        <aside className="fps-left-hud">
+          <div className="fps-player">
+            <img src={character.image} alt="" />
+
+            <div>
+              <b>{character.name}</b>
+              <small>{character.faction}</small>
+            </div>
+          </div>
+
+          <div className="fps-stats">
+            <StatBar label="POWER" value={stats.power} />
+            <StatBar label="TRUST" value={stats.trust} />
+            <StatBar label="HUMANITY" value={stats.humanity} />
+          </div>
+
+          <div className="fps-objective-panel">
+            <span>MISSION OBJECTIVE</span>
+            <strong>{mission.objective}</strong>
+            <p>{mission.description}</p>
+          </div>
+        </aside>
+
+        {/* BACK BUTTON */}
+        <button
+          className="back-mission"
+          onClick={() => setScreen("lobby")}
+        >
+          ← BACK
+        </button>
+
+        {/* INTERACT */}
+        {inRange && (
+          <button
+            className="interact-button"
+            onClick={interact}
+          >
+            <span>[ E ]</span>
+            INTERACT
+          </button>
+        )}
+
+        {/* MOBILE INTERACT */}
+        {inRange && (
+          <button
+            className="mobile-interact"
+            onClick={interact}
+          >
+            INTERACT
+          </button>
+        )}
+
+        {/* BOTTOM MOBILE HUD */}
+        <div className="mobile-mission-info">
+          <span>{mission.location}</span>
+          <b>{Math.round(distance)}m</b>
+        </div>
+
+        {flash && (
+          <div className="fps-toast">
+            {flash}
+          </div>
+        )}
+
+        {/* DIALOGUE / CHOICE */}
+        {dialogueOpen && (
+          <div className="mission-dialogue">
+            <div className="dialogue-panel">
+
+              <button
+                className="dialogue-close"
+                onClick={() => setDialogueOpen(false)}
+              >
+                ×
+              </button>
+
+              <div className="eyebrow">
+                {mission.location}
+              </div>
+
+              <h2>{mission.objective}</h2>
+
+              <p className="dialogue-description">
+                {mission.description}
+              </p>
+
+              <div className="choice-list">
+                {mission.choices.map((item) => (
+                  <button
+                    key={item.id}
+                    disabled={!!choice}
+                    className={`choice-card ${item.tone} ${
+                      choice?.id === item.id ? "chosen" : ""
+                    }`}
+                    onClick={() => handleChoice(item)}
+                  >
+                    <strong>{item.id}</strong>
+
+                    <div>
+                      <b>{item.title}</b>
+                      <p>{item.desc}</p>
+
+                      <small>
+                        {Object.entries(item.effects)
+                          .map(
+                            ([key, value]) =>
+                              `${value >= 0 ? "+" : "−"}${key.toUpperCase()} ${Math.abs(value)}`
+                          )
+                          .join("   ")}
+                      </small>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              {choice && (
+                <div className="consequence-card">
+                  <span>CONSEQUENCE</span>
+
+                  <h3>{choice.title}</h3>
+
+                  <p>{choice.desc}</p>
+
+                  <div className="effect-chips">
+                    {Object.entries(choice.effects).map(
+                      ([key, value]) => (
+                        <span
+                          key={key}
+                          className={
+                            value >= 0 ? "plus" : "minus"
+                          }
+                        >
+                          {key.toUpperCase()}{" "}
+                          {value >= 0 ? "+" : ""}
+                          {value}
+                        </span>
+                      )
+                    )}
+                  </div>
+
+                  <button
+                    className="continue-button"
+                    onClick={nextMission}
+                  >
+                    {missionIndex === missions.length - 1
+                      ? "TAPUSIN ANG MISYON →"
+                      : "MAGPATULOY →"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* =========================================================
+   APP
+========================================================= */
+
+export default function App() {
+  const [playerName, setPlayerName] = useState(
+    () => localStorage.getItem("tatsulok_name") || ""
+  );
+
+  const [selectedId, setSelectedId] = useState("peyudo");
+
+  const [screen, setScreen] = useState("lobby");
+
+  const [missionIndex, setMissionIndex] = useState(0);
+
+  const [stats, setStats] = useState({
+    power: 68,
+    trust: 42,
+    humanity: 55,
+    wealth: 60,
+  });
+
+  const [sound, setSound] = useState(true);
+
+  const [flash, setFlash] = useState("");
+
+  const character = useMemo(
+    () =>
+      characters.find((c) => c.id === selectedId) ||
+      characters[0],
+    [selectedId]
+  );
+
+  const mission = missions[missionIndex];
+
+  useEffect(() => {
+    localStorage.setItem("tatsulok_name", playerName);
+  }, [playerName]);
+
+  function chooseCharacter(id) {
+    const c = characters.find((item) => item.id === id);
+
+    if (!c) return;
+
+    setSelectedId(id);
+
+    setStats({
+      power: c.power,
+      trust: c.trust,
+      humanity: c.humanity,
+      wealth: c.wealth,
+    });
+
+    setScreen("lobby");
+  }
+
+  function startMission() {
+    if (!playerName.trim()) {
+      setFlash("MAGLAGAY MUNA NG PLAYER NAME.");
+      return;
+    }
+
+    setFlash("");
+    setMissionIndex(0);
+    setScreen("mission");
+  }
+
+  function resetGame() {
+    const c =
+      characters.find((item) => item.id === selectedId) ||
+      characters[0];
+
+    setStats({
+      power: c.power,
+      trust: c.trust,
+      humanity: c.humanity,
+      wealth: c.wealth,
+    });
+
+    setMissionIndex(0);
+    setScreen("mission");
+  }
+
+  const ending =
+    stats.humanity >= 80 && stats.trust >= 65
+      ? "ANG MABUTING PANININDIGAN"
+      : stats.power >= 85 && stats.trust < 45
+      ? "ANG BAGONG PANGINOON"
+      : "ANG SISTEMANG NAGBAGO";
+
+  /* ================= MISSION ================= */
+
+  if (screen === "mission") {
+    return (
+      <MissionScreen
+        mission={mission}
+        character={character}
+        stats={stats}
+        setStats={setStats}
+        playerName={playerName}
+        missionIndex={missionIndex}
+        setMissionIndex={setMissionIndex}
+        setScreen={setScreen}
+      />
+    );
+  }
+
+  /* ================= ENDING ================= */
+
+  if (screen === "ending") {
+    return (
+      <div className="app ending-screen">
+        <Header
+          active="MISSION"
+          onNavigate={setScreen}
+          sound={sound}
+          setSound={setSound}
+        />
+
+        <main className="ending-content">
+          <div className="eyebrow">
+            FINAL MISSION / ENDING
+          </div>
+
+          <h1>{ending}</h1>
+
+          <p>
+            Ang bawat desisyon mo sa apat na misyon ay
+            nakaapekto sa balanse ng Tatsulok.
+          </p>
+
+          <div className="final-stats">
+            <StatBar label="POWER" value={stats.power} />
+            <StatBar label="TRUST" value={stats.trust} />
+            <StatBar
+              label="HUMANITY"
+              value={stats.humanity}
+            />
+            <StatBar label="WEALTH" value={stats.wealth} />
+          </div>
+
+          <div className="ending-actions">
+            <button
+              className="gold-button"
+              onClick={resetGame}
+            >
+              PLAY AGAIN →
+            </button>
+
+            <button
+              className="ghost-button"
+              onClick={() => setScreen("lobby")}
+            >
+              RETURN TO LOBBY
+            </button>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  /* ================= LOBBY / CHARACTERS ================= */
+
+  const characterScreen = screen === "characters";
+
+  return (
+    <div className="app lobby-app">
+      <Header
+        active={characterScreen ? "CHARACTERS" : "LOBBY"}
+        onNavigate={setScreen}
+        sound={sound}
+        setSound={setSound}
+      />
+
+      <main>
+        <section className="hero-section">
+          <div className="hero-copy">
+            <div className="eyebrow">
+              01 / WORLD PREMISE
+            </div>
+
+            <h1>
+              ANG MUNDO NG
+              <br />
+              <span>TATSULOK</span>
+            </h1>
+
+            <p>
+              Isang interactive puzzle-action game tungkol
+              sa kapangyarihan, misteryo, kurapsyon,
+              kaunlaran at paninindigan.
+            </p>
+
+            <div className="name-input">
+              <input
+                value={playerName}
+                onChange={(e) =>
+                  setPlayerName(e.target.value)
+                }
+                placeholder="PLAYER NAME..."
+                maxLength={24}
+              />
+
+              <button
+                onClick={() => {
+                  if (playerName.trim()) {
+                    setScreen("lobby");
+                  } else {
+                    setFlash(
+                      "MAGLAGAY MUNA NG PANGALAN."
+                    );
+                  }
+                }}
+              >
+                ENTER
+              </button>
+            </div>
+
+            {flash && (
+              <div className="form-toast">{flash}</div>
+            )}
+          </div>
+        </section>
+
+        <section className="character-section">
+          <div className="section-head">
+            <div>
+              <div className="eyebrow">
+                02 / CHARACTER SYSTEM
+              </div>
+
+              <h2>
+                PILIIN ANG <span>IYONG KARAKTER</span>
+              </h2>
+            </div>
+
+            <div className="section-note">
+              11 CHARACTERS / 3 FACTIONS
+              <br />
+              CLICK TO SELECT
+            </div>
+          </div>
+
+          <div className="character-grid">
+            {characters.map((c, index) => (
+              <button
+                key={c.id}
+                className={`character-card ${
+                  selectedId === c.id ? "selected" : ""
+                }`}
+                onClick={() => chooseCharacter(c.id)}
+              >
+                <div className="card-image">
+                  <img src={c.image} alt={c.name} />
+
+                  <span>
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                </div>
+
+                <div className="card-info">
+                  <b>{c.name}</b>
+                  <small>{c.faction}</small>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="dossier-section">
+          <div className="dossier-portrait">
+            <img
+              src={character.image}
+              alt={character.name}
+            />
+          </div>
+
+          <div className="dossier-copy">
+            <div className="eyebrow">
+              SELECTED CHARACTER / DOSSIER
+            </div>
+
+            <h2>{character.name}</h2>
+
+            <p className="faction-name">
+              {character.faction}
+            </p>
+
+            <p>
+              Handa na ang karakter para sa apat na yugto
+              ng misyon. Ang stats ay magbabago habang
+              gumagawa ka ng desisyon.
+            </p>
+
+            <div className="dossier-stats">
+              <StatBar
+                label="POWER"
+                value={stats.power}
+              />
+              <StatBar
+                label="TRUST"
+                value={stats.trust}
+              />
+              <StatBar
+                label="HUMANITY"
+                value={stats.humanity}
+              />
+              <StatBar
+                label="WEALTH"
+                value={stats.wealth}
+              />
+            </div>
+
+            <div className="launch-row">
+              <div>
+                <small>PLAYER</small>
+                <b>{playerName || "UNKNOWN"}</b>
+              </div>
+
+              <button
+                className="red-button"
+                onClick={startMission}
+              >
+                START MISSION →
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
