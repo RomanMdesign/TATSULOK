@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { CHARACTERS, FACTIONS } from './game/characters';
-import { MISSIONS } from './game/MissionSystem';
-import District3D from './game/District3D';
+import { CHARACTERS, FACTIONS } from './game/characters.js';
+import { MISSIONS } from './game/MissionSystem.js';
+import District3D from './game/District3D.jsx';
 
 export default function App() {
   const [gameState, setGameState] = useState('LOBBY'); // LOBBY, SELECTION, DOSSIER, GAME, EVENT, MISSION_CLEAR
