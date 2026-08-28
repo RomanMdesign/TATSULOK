@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { CHARACTERS, FACTIONS } from './game/characters.js';
-import { MISSIONS } from './game/MissionSystem.js';
-import District3D from './game/District3D.jsx';
+import { CHARACTERS, FACTIONS } from './game/characters';
+import { MISSIONS } from './game/MissionSystem';
+import District3D from './game/District3D';
 
 export default function App() {
   const [gameState, setGameState] = useState('LOBBY'); // LOBBY, SELECTION, DOSSIER, GAME, EVENT, MISSION_CLEAR
@@ -43,7 +43,6 @@ export default function App() {
   const handleInteract = () => {
     if (distanceToObjective <= 5) {
       if (activeObjective.isInterior && !isInteriorMode) {
-        // Pumasok sa loob ng gusali
         setIsInteriorMode(true);
         setPlayerPos({ x: 0, z: 10 });
       } else {
@@ -55,13 +54,11 @@ export default function App() {
   const handleChoiceSelect = (choice) => {
     alert(choice.text);
     
-    // Lumabas mula sa interior kung kinakailangan
     if (isInteriorMode) {
       setIsInteriorMode(false);
       setPlayerPos({ x: activeObjective.location.x, z: activeObjective.location.z + 3 });
     }
 
-    // Lumipat sa susunod na Objective o Misyon
     if (currentObjIndex < activeMission.objectives.length - 1) {
       setCurrentObjIndex(currentObjIndex + 1);
       setGameState('GAME');
@@ -89,7 +86,6 @@ export default function App() {
             className="px-4 py-2 bg-gray-800 border border-red-900 rounded text-center w-64 focus:outline-none focus:border-red-500"
           />
 
-          {/* Mission Selector Dropdown */}
           <div className="flex flex-col items-center space-y-2">
             <label className="text-xs text-yellow-500 font-bold">PILIIN ANG MISYON:</label>
             <select
@@ -214,7 +210,6 @@ export default function App() {
             isInterior={isInteriorMode}
           />
 
-          {/* HUD Top Bar */}
           <div className="absolute top-4 left-4 right-4 flex justify-between items-start pointer-events-none">
             <div className="bg-black/80 border border-gray-800 p-3 rounded pointer-events-auto">
               <p className="text-xs text-gray-400">PLAYER: <span className="text-white font-bold">{playerName}</span></p>
@@ -230,7 +225,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* Objective Tracker UI */}
           <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/80 border border-yellow-600/50 px-6 py-2 rounded text-center pointer-events-none">
             <p className="text-xs text-gray-400 font-bold">OBJECTIVE {currentObjIndex + 1} / {activeMission.objectives.length}</p>
             <p className="text-sm font-bold text-yellow-400">★ {activeObjective.title}</p>
@@ -238,7 +232,6 @@ export default function App() {
             {isInteriorMode && <span className="text-xs text-green-400">[ NASA LOOB NG GUSALI ]</span>}
           </div>
 
-          {/* Touch / Keyboard Movement Controls */}
           <div className="absolute bottom-6 left-6 grid grid-cols-3 gap-2 w-36 h-36">
             <div />
             <button onClick={() => movePlayer(0, -2)} className="bg-gray-800/80 border border-gray-600 rounded font-bold active:bg-red-700">W</button>
@@ -248,7 +241,6 @@ export default function App() {
             <button onClick={() => movePlayer(2, 0)} className="bg-gray-800/80 border border-gray-600 rounded font-bold active:bg-red-700">D</button>
           </div>
 
-          {/* Interact Button */}
           {distanceToObjective <= 5 && (
             <button 
               onClick={handleInteract}
@@ -260,7 +252,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 4. MISSION EVENT / CHOICE DIALOGUE */}
+      {/* 4. MISSION EVENT */}
       {gameState === 'EVENT' && (
         <div className="absolute inset-0 bg-black/90 flex items-center justify-center p-6 z-50">
           <div className="bg-gray-900 border border-yellow-600 max-w-lg w-full p-6 rounded space-y-6">
@@ -282,7 +274,7 @@ export default function App() {
         </div>
       )}
 
-      {/* 5. MISSION CLEAR SCREEN */}
+      {/* 5. MISSION CLEAR */}
       {gameState === 'MISSION_CLEAR' && (
         <div className="absolute inset-0 bg-black/95 flex flex-col items-center justify-center p-6 z-50 space-y-6">
           <h2 className="text-4xl font-black text-yellow-500 tracking-wider">MISYON KUMPLETO!</h2>
