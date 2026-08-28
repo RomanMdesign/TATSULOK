@@ -1,6 +1,888 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./styles.css";
 
+const characters = [
+  {
+    id: "peyudo",
+    name: "PEYUDO",
+    faction: "PANGINOON",
+    image: "/assets/peyudo.jpg",
+    power: 68,
+    trust: 42,
+    humanity: 55,
+  },
+  {
+    id: "misteryo",
+    name: "MISTERYO",
+    faction: "PANGINOON",
+    image: "/assets/misteryo.jpg",
+    power: 62,
+    trust: 45,
+    humanity: 48,
+  },
+  {
+    id: "bangag",
+    name: "BANGAG",
+    faction: "PANGINOON",
+    image: "/assets/bangag.jpg",
+    power: 76,
+    trust: 32,
+    humanity: 40,
+  },
+  {
+    id: "pula",
+    name: "PULA",
+    faction: "PANGINOON",
+    image: "/assets/pula.jpg",
+    power: 72,
+    trust: 38,
+    humanity: 42,
+  },
+  {
+    id: "tanikala",
+    name: "TANIKALA",
+    faction: "PANGINOON",
+    image: "/assets/tanikala.jpg",
+    power: 70,
+    trust: 35,
+    humanity: 44,
+  },
+  {
+    id: "presyo",
+    name: "PRESYO",
+    faction: "MALAKAS",
+    image: "/assets/presyo.jpg",
+    power: 58,
+    trust: 51,
+    humanity: 50,
+  },
+  {
+    id: "pintuan",
+    name: "PINTUAN",
+    faction: "MALAKAS",
+    image: "/assets/pintuan.jpg",
+    power: 55,
+    trust: 60,
+    humanity: 52,
+  },
+  {
+    id: "ling",
+    name: "LING",
+    faction: "MABUTI",
+    image: "/assets/ling.jpg",
+    power: 42,
+    trust: 72,
+    humanity: 80,
+  },
+  {
+    id: "batid",
+    name: "BATID",
+    faction: "MABUTI",
+    image: "/assets/batid.jpg",
+    power: 45,
+    trust: 76,
+    humanity: 74,
+  },
+  {
+    id: "tisa",
+    name: "TISA",
+    faction: "MABUTI",
+    image: "/assets/tisa.jpg",
+    power: 48,
+    trust: 70,
+    humanity: 78,
+  },
+  {
+    id: "subalit",
+    name: "SUBALIT",
+    faction: "MABUTI",
+    image: "/assets/subalit.jpg",
+    power: 60,
+    trust: 68,
+    humanity: 81,
+  },
+];
+
+const locations = [
+  {
+    id: "start",
+    title: "PLAYER START",
+    subtitle: "District entrance",
+    type: "start",
+    x: 75,
+    y: 72,
+    icon: "△",
+  },
+  {
+    id: "plaza",
+    title: "PLAZA",
+    subtitle: "Main Objective",
+    type: "objective",
+    x: 51,
+    y: 47,
+    icon: "◆",
+  },
+  {
+    id: "evacuation",
+    title: "EVACUATION POINT",
+    subtitle: "Fast Travel",
+    type: "travel",
+    x: 25,
+    y: 39,
+    icon: "✚",
+  },
+  {
+    id: "market",
+    title: "BLACK MARKET",
+    subtitle: "NPC / Contact",
+    type: "npc",
+    x: 23,
+    y: 69,
+    icon: "♟",
+  },
+  {
+    id: "supply",
+    title: "SUPPLY DEPOT",
+    subtitle: "Supply / Loot",
+    type: "loot",
+    x: 57,
+    y: 72,
+    icon: "▣",
+  },
+  {
+    id: "government",
+    title: "GOVERNMENT COMPLEX",
+    subtitle: "Side Mission",
+    type: "side",
+    x: 37,
+    y: 20,
+    icon: "◇",
+  },
+  {
+    id: "oldtown",
+    title: "OLD TOWN",
+    subtitle: "Side Mission",
+    type: "side",
+    x: 76,
+    y: 38,
+    icon: "◆",
+  },
+  {
+    id: "power",
+    title: "POWER PLANT",
+    subtitle: "Locked Area",
+    type: "locked",
+    x: 70,
+    y: 17,
+    icon: "🔒",
+  },
+];
+
+const missions = [
+  {
+    id: 1,
+    title: "ANG BAHA",
+    description:
+      "Isang matinding baha ang lumubog sa district. Limitado ang oras, pagkain at pondo.",
+    objective: "Hanapin ang nawawalang supply sa Plaza.",
+  },
+  {
+    id: 2,
+    title: "ANG LINDOL",
+    description:
+      "Isang malakas na lindol ang yumanig sa lumang distrito.",
+    objective: "Hanapin ang mga nakaligtas sa Old Town.",
+  },
+  {
+    id: 3,
+    title: "KURAPSYON",
+    description:
+      "May nawawalang pondo at may taong kumokontrol sa distribution system.",
+    objective: "Hanapin ang source ng nawawalang pondo.",
+  },
+  {
+    id: 4,
+    title: "ANG TANIKALA",
+    description:
+      "Sa huling yugto, kailangan mong pumili kung babaguhin ang sistema.",
+    objective: "Harapin ang pinagmulan ng kapangyarihan.",
+  },
+];
+
+function App() {
+  const [screen, setScreen] = useState("lobby");
+  const [playerName, setPlayerName] = useState("");
+  const [selectedCharacter, setSelectedCharacter] = useState("peyudo");
+
+  const [missionIndex, setMissionIndex] = useState(0);
+  const [objectiveDone, setObjectiveDone] = useState(false);
+
+  const [power, setPower] = useState(68);
+  const [trust, setTrust] = useState(42);
+  const [humanity, setHumanity] = useState(55);
+
+  const [position, setPosition] = useState({
+    x: 50,
+    y: 58,
+  });
+
+  const [activeLocation, setActiveLocation] = useState(null);
+  const [choiceOpen, setChoiceOpen] = useState(false);
+  const [choiceMade, setChoiceMade] = useState(null);
+  const [soundOn, setSoundOn] = useState(true);
+  const [message, setMessage] = useState(
+    "Pumasok sa Plaza para simulan ang mission."
+  );
+
+  const character = useMemo(
+    () => characters.find((c) => c.id === selectedCharacter),
+    [selectedCharacter]
+  );
+
+  const mission = missions[missionIndex];
+
+  useEffect(() => {
+    if (!playerName) return;
+
+    localStorage.setItem(
+      "tatsulok-save",
+      JSON.stringify({
+        playerName,
+        selectedCharacter,
+        missionIndex,
+        power,
+        trust,
+        humanity,
+      })
+    );
+  }, [
+    playerName,
+    selectedCharacter,
+    missionIndex,
+    power,
+    trust,
+    humanity,
+  ]);
+
+  useEffect(() => {
+    const save = localStorage.getItem("tatsulok-save");
+
+    if (!save) return;
+
+    try {
+      const data = JSON.parse(save);
+
+      if (data.playerName) setPlayerName(data.playerName);
+      if (data.selectedCharacter)
+        setSelectedCharacter(data.selectedCharacter);
+      if (typeof data.missionIndex === "number")
+        setMissionIndex(data.missionIndex);
+      if (typeof data.power === "number") setPower(data.power);
+      if (typeof data.trust === "number") setTrust(data.trust);
+      if (typeof data.humanity === "number")
+        setHumanity(data.humanity);
+    } catch {
+      // ignore corrupted save
+    }
+  }, []);
+
+  function enterGame() {
+    if (!playerName.trim()) {
+      alert("Maglagay muna ng pangalan.");
+      return;
+    }
+
+    setScreen("district");
+  }
+
+  function selectCharacter(id) {
+    setSelectedCharacter(id);
+
+    const selected = characters.find((c) => c.id === id);
+
+    if (selected) {
+      setPower(selected.power);
+      setTrust(selected.trust);
+      setHumanity(selected.humanity);
+    }
+  }
+
+  function movePlayer(dx, dy) {
+    setPosition((current) => ({
+      x: Math.max(8, Math.min(92, current.x + dx)),
+      y: Math.max(15, Math.min(86, current.y + dy)),
+    }));
+  }
+
+  function handleLocation(location) {
+    setActiveLocation(location);
+
+    if (location.id === "plaza") {
+      setChoiceOpen(true);
+      setMessage("May desisyon kang kailangang gawin.");
+      return;
+    }
+
+    if (location.id === "supply") {
+      setPower((v) => Math.min(100, v + 5));
+      setMessage("SUPPLY NAKUHA: +5 POWER");
+      return;
+    }
+
+    if (location.id === "evacuation") {
+      setPosition({ x: 25, y: 39 });
+      setMessage("FAST TRAVEL: EVACUATION POINT");
+      return;
+    }
+
+    if (location.id === "power") {
+      setMessage("LOCKED AREA — Hindi pa unlocked.");
+      return;
+    }
+
+    if (location.type === "side") {
+      setTrust((v) => Math.min(100, v + 5));
+      setMessage("SIDE MISSION DISCOVERED: +5 TRUST");
+      return;
+    }
+
+    if (location.type === "npc") {
+      setHumanity((v) => Math.min(100, v + 3));
+      setMessage("NPC CONTACT: May bagong impormasyon.");
+      return;
+    }
+  }
+
+  function chooseDecision(type) {
+    setChoiceMade(type);
+    setChoiceOpen(false);
+    setObjectiveDone(true);
+
+    if (type === "help") {
+      setHumanity((v) => Math.min(100, v + 15));
+      setPower((v) => Math.max(0, v - 5));
+      setTrust((v) => Math.min(100, v + 5));
+      setMessage("DESISYON: Tinulungan mo ang mga tao.");
+    }
+
+    if (type === "control") {
+      setPower((v) => Math.min(100, v + 15));
+      setTrust((v) => Math.max(0, v - 10));
+      setMessage("DESISYON: Kinontrol mo ang relief distribution.");
+    }
+
+    if (type === "ignore") {
+      setPower((v) => Math.min(100, v + 10));
+      setHumanity((v) => Math.max(0, v - 15));
+      setMessage("DESISYON: Pinili mong huwag makialam.");
+    }
+  }
+
+  function nextMission() {
+    if (missionIndex >= missions.length - 1) {
+      setScreen("ending");
+      return;
+    }
+
+    setMissionIndex((v) => v + 1);
+    setObjectiveDone(false);
+    setChoiceMade(null);
+    setActiveLocation(null);
+    setPosition({ x: 75, y: 72 });
+
+    setMessage(
+      `MISSION ${missionIndex + 2}: ${missions[missionIndex + 1].title}`
+    );
+  }
+
+  if (screen === "lobby") {
+    return (
+      <div className="game">
+        <header className="topbar">
+          <div className="logo">
+            <span>△</span>
+            TATSULOK
+          </div>
+
+          <div className="top-nav">
+            <button className="active">WORLD</button>
+            <button>LOBBY</button>
+            <button>CHARACTERS</button>
+            <button>DOSSIER</button>
+            <button>FACTIONS</button>
+            <button onClick={enterGame}>MISSION</button>
+          </div>
+
+          <div className="top-right">
+            <span className="saved">☁ SAVED LOCALLY</span>
+
+            <button onClick={() => setSoundOn(!soundOn)}>
+              {soundOn ? "🔊" : "🔇"}
+            </button>
+          </div>
+        </header>
+
+        <section className="lobby-hero">
+          <div className="lobby-copy">
+            <div className="eyebrow">TATSULOK / DISTRICT SYSTEM</div>
+
+            <h1>
+              ANG MUNDO NG
+              <br />
+              <span>TATSULOK</span>
+            </h1>
+
+            <p>
+              Isang playable world tungkol sa kapangyarihan,
+              misteryo, kurapsyon, kaunlaran at paninindigan.
+            </p>
+
+            <div className="name-input">
+              <input
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+                placeholder="Ilagay ang pangalan..."
+                maxLength={24}
+              />
+
+              <button onClick={enterGame}>ENTER DISTRICT →</button>
+            </div>
+          </div>
+        </section>
+
+        <section className="character-select">
+          <div className="eyebrow">CHARACTER SELECTION</div>
+
+          <h2>
+            PILIIN ANG <span>TAUHAN</span>
+          </h2>
+
+          <div className="character-strip">
+            {characters.map((item) => (
+              <button
+                key={item.id}
+                className={
+                  selectedCharacter === item.id
+                    ? "char active"
+                    : "char"
+                }
+                onClick={() => selectCharacter(item.id)}
+              >
+                <img src={item.image} alt={item.name} />
+                <div>
+                  <strong>{item.name}</strong>
+                  <small>{item.faction}</small>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="selected-character">
+            <img src={character.image} alt={character.name} />
+
+            <div>
+              <small>SELECTED CHARACTER</small>
+              <h3>{character.name}</h3>
+              <p>{character.faction}</p>
+
+              <div className="mini-stats">
+                <span>POWER {character.power}</span>
+                <span>TRUST {character.trust}</span>
+                <span>HUMANITY {character.humanity}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (screen === "ending") {
+    return (
+      <div className="ending-screen">
+        <div className="ending-panel">
+          <div className="eyebrow">TATSULOK / ENDING</div>
+
+          <h1>
+            ANG MABUTING
+            <br />
+            <span>PANININDIGAN</span>
+          </h1>
+
+          <p>
+            Natapos mo ang unang district.
+            Ang magiging ending ay depende sa mga
+            desisyong ginawa mo.
+          </p>
+
+          <div className="ending-stats">
+            <span>POWER {power}</span>
+            <span>TRUST {trust}</span>
+            <span>HUMANITY {humanity}</span>
+          </div>
+
+          <button
+            className="gold-button"
+            onClick={() => setScreen("district")}
+          >
+            BALIK SA DISTRICT
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="game district-game">
+      <header className="topbar">
+        <div className="logo">
+          <span>△</span>
+          TATSULOK
+        </div>
+
+        <div className="mission-title">
+          MISSION {String(mission.id).padStart(2, "0")} —{" "}
+          {mission.title}
+        </div>
+
+        <div className="top-right">
+          <span className="saved">● SAVED LOCALLY</span>
+
+          <button onClick={() => setSoundOn(!soundOn)}>
+            {soundOn ? "🔊" : "🔇"}
+          </button>
+
+          <button onClick={() => setScreen("lobby")}>×</button>
+        </div>
+      </header>
+
+      <main className="district-layout">
+        <aside className="left-hud">
+          <div className="player-card">
+            <img src={character.image} alt={character.name} />
+
+            <div className="player-info">
+              <strong>{character.name}</strong>
+              <small>{character.faction}</small>
+
+              <div className="bar">
+                <span style={{ width: `${power}%` }} />
+              </div>
+
+              <label>POWER {power}</label>
+
+              <div className="bar blue">
+                <span style={{ width: `${trust}%` }} />
+              </div>
+
+              <label>TRUST {trust}</label>
+
+              <div className="bar green">
+                <span style={{ width: `${humanity}%` }} />
+              </div>
+
+              <label>HUMANITY {humanity}</label>
+            </div>
+          </div>
+
+          <div className="objective-card">
+            <div className="eyebrow">OBJECTIVE</div>
+
+            <strong>{mission.objective}</strong>
+
+            <div className="objective-progress">
+              <span className={objectiveDone ? "done" : ""}>
+                {objectiveDone ? "✓ COMPLETE" : "0 / 1"}
+              </span>
+            </div>
+          </div>
+
+          <div className="mini-map">
+            <div className="map-grid" />
+
+            {locations.map((location) => (
+              <div
+                key={location.id}
+                className={`map-dot ${location.type}`}
+                style={{
+                  left: `${location.x}%`,
+                  top: `${location.y}%`,
+                }}
+              />
+            )}
+
+            <div
+              className="map-player"
+              style={{
+                left: `${position.x}%`,
+                top: `${position.y}%`,
+              }}
+            />
+
+            <span className="district-number">
+              DISTRICT 01
+            </span>
+          </div>
+        </aside>
+
+        <section className="district-world">
+          <div className="world-sky">
+            <div className="moon" />
+            <div className="cloud cloud-a" />
+            <div className="cloud cloud-b" />
+          </div>
+
+          <div className="city">
+            <div className="far-buildings">
+              {Array.from({ length: 18 }).map((_, i) => (
+                <div
+                  className="building far"
+                  key={i}
+                  style={{
+                    height: `${90 + ((i * 37) % 150)}px`,
+                  }}
+                />
+              ))}
+            </div>
+
+            <div className="district-island">
+              <div className="road road-main" />
+              <div className="road road-cross" />
+
+              <div className="water water-a" />
+              <div className="water water-b" />
+
+              <div className="building b1">
+                <span>GOVERNMENT</span>
+              </div>
+
+              <div className="building b2">
+                <span>OLD TOWN</span>
+              </div>
+
+              <div className="building b3">
+                <span>MARKET</span>
+              </div>
+
+              <div className="building b4">
+                <span>SUPPLY</span>
+              </div>
+
+              <div className="building b5">
+                <span>POWER</span>
+              </div>
+
+              <div className="plaza">
+                <div className="plaza-ring">
+                  ◆
+                </div>
+              </div>
+
+              <div className="bridge bridge-a" />
+              <div className="bridge bridge-b" />
+            </div>
+
+            {locations.map((location) => (
+              <button
+                key={location.id}
+                className={`location-marker ${location.type}`}
+                style={{
+                  left: `${location.x}%`,
+                  top: `${location.y}%`,
+                }}
+                onClick={() => handleLocation(location)}
+              >
+                <span className="marker-icon">
+                  {location.icon}
+                </span>
+
+                <span className="marker-label">
+                  <strong>{location.title}</strong>
+                  <small>{location.subtitle}</small>
+                </span>
+              </button>
+            ))}
+
+            <div
+              className="player-avatar"
+              style={{
+                left: `${position.x}%`,
+                top: `${position.y}%`,
+              }}
+            >
+              <div className="player-shadow" />
+              <div className="player-body">●</div>
+              <span>{character.name}</span>
+            </div>
+          </div>
+
+          <div className="interaction-message">
+            <span>●</span>
+            {message}
+          </div>
+
+          <div className="mobile-controls">
+            <div className="joystick">
+              <button onClick={() => movePlayer(0, -4)}>▲</button>
+
+              <button onClick={() => movePlayer(-4, 0)}>
+                ◀
+              </button>
+
+              <div className="joystick-center" />
+
+              <button onClick={() => movePlayer(4, 0)}>
+                ▶
+              </button>
+
+              <button onClick={() => movePlayer(0, 4)}>▼</button>
+            </div>
+
+            <div className="action-buttons">
+              <button onClick={() => setMessage("RUN")}>
+                🏃
+              </button>
+
+              <button
+                className="action-main"
+                onClick={() => {
+                  if (activeLocation) {
+                    handleLocation(activeLocation);
+                  } else {
+                    setMessage(
+                      "Lumapit sa isang marker para makipag-interact."
+                    );
+                  }
+                }}
+              >
+                ◎
+              </button>
+
+              <button onClick={() => setMessage("INSPECT")}>
+                🔍
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <aside className="right-hud">
+          <div className="decision-title">
+            PILIIN ANG
+            <br />
+            <span>IYONG DESISYON</span>
+          </div>
+
+          <button
+            className="decision green"
+            onClick={() => chooseDecision("help")}
+          >
+            <b>A</b>
+            <div>
+              <strong>GAMITIN ANG SARILING YAMAN</strong>
+              <small>
+                + HUMANITY 15 &nbsp; − POWER 5
+              </small>
+            </div>
+          </button>
+
+          <button
+            className="decision gold"
+            onClick={() => chooseDecision("control")}
+          >
+            <b>B</b>
+            <div>
+              <strong>KONTROLIN ANG RELIEF DISTRIBUTION</strong>
+              <small>
+                + POWER 15 &nbsp; − TRUST 10
+              </small>
+            </div>
+          </button>
+
+          <button
+            className="decision red"
+            onClick={() => chooseDecision("ignore")}
+          >
+            <b>C</b>
+            <div>
+              <strong>HUWAG MAKIALAM</strong>
+              <small>
+                + POWER 10 &nbsp; − HUMANITY 15
+              </small>
+            </div>
+          </button>
+
+          <div className="choice-status">
+            <div className="eyebrow">KASAYSAYAN NG DESISYON</div>
+
+            {!choiceMade ? (
+              <span>WALANG DESISYON PA</span>
+            ) : (
+              <span className="choice-complete">
+                DESISYON NAKA-RECORD ✓
+              </span>
+            )}
+          </div>
+
+          {objectiveDone && (
+            <button
+              className="next-mission"
+              onClick={nextMission}
+            >
+              {missionIndex === missions.length - 1
+                ? "ENDING →"
+                : "NEXT MISSION →"}
+            </button>
+          )}
+        </aside>
+      </main>
+
+      {choiceOpen && (
+        <div className="decision-modal">
+          <div className="modal-panel">
+            <div className="eyebrow">MISSION DECISION</div>
+
+            <h2>
+              MAY NAKITA KANG
+              <br />
+              TAONG NAGTATAGO NG KAHON.
+            </h2>
+
+            <p>
+              Ano ang gagawin mo?
+            </p>
+
+            <div className="modal-actions">
+              <button
+                className="green-action"
+                onClick={() => chooseDecision("help")}
+              >
+                TULUNGAN
+              </button>
+
+              <button
+                className="gold-action"
+                onClick={() => chooseDecision("control")}
+              >
+                KONTROLIN
+              </button>
+
+              <button
+                className="red-action"
+                onClick={() => chooseDecision("ignore")}
+              >
+                DAHILAN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;import React, { useEffect, useMemo, useState } from "react";
+import "./styles.css";
+
 /*
 ===========================================================
 TATSULOK
