@@ -9,7 +9,7 @@ export const characters = [
     trust: 34,
     humanity: 28,
     ability: "Influence",
-    image: "/assets/character-01.jpg"
+    image: "/assets/peyudo.png"
   },
 
   {
@@ -22,7 +22,7 @@ export const characters = [
     trust: 38,
     humanity: 43,
     ability: "Shadow Strike",
-    image: "/assets/character-02.jpg"
+    image: "/assets/misteryo.png"
   },
 
   {
@@ -35,7 +35,7 @@ export const characters = [
     trust: 25,
     humanity: 21,
     ability: "Authority",
-    image: "/assets/character-03.jpg"
+    image: "/assets/bangag.jpg"
   },
 
   {
@@ -48,7 +48,7 @@ export const characters = [
     trust: 31,
     humanity: 19,
     ability: "Control",
-    image: "/assets/character-04.jpg"
+    image: "/assets/pula.png"
   },
 
   {
@@ -61,7 +61,7 @@ export const characters = [
     trust: 27,
     humanity: 16,
     ability: "Bind",
-    image: "/assets/character-05.jpg"
+    image: "/assets/tanikala.png"
   },
 
   {
@@ -74,7 +74,7 @@ export const characters = [
     trust: 41,
     humanity: 37,
     ability: "Hypnotism",
-    image: "/assets/character-06.jpg"
+    image: "/assets/presyo.png"
   },
 
   {
@@ -87,7 +87,7 @@ export const characters = [
     trust: 48,
     humanity: 51,
     ability: "Manipulate Fate",
-    image: "/assets/character-07.jpg"
+    image: "/assets/pintuan.png"
   },
 
   {
@@ -100,7 +100,7 @@ export const characters = [
     trust: 84,
     humanity: 91,
     ability: "Heal",
-    image: "/assets/character-08.jpg"
+    image: "/assets/ling.JPG"
   },
 
   {
@@ -113,7 +113,7 @@ export const characters = [
     trust: 87,
     humanity: 89,
     ability: "Knowledge",
-    image: "/assets/character-09.jpg"
+    image: "/assets/batid.png"
   },
 
   {
@@ -126,7 +126,7 @@ export const characters = [
     trust: 90,
     humanity: 94,
     ability: "Growth",
-    image: "/assets/character-10.jpg"
+    image: "/assets/tisa.jpg"
   },
 
   {
@@ -139,7 +139,7 @@ export const characters = [
     trust: 82,
     humanity: 88,
     ability: "Resolve",
-    image: "/assets/character-11.jpg"
+    image: "/assets/subalit.png"
   }
 ];
 
