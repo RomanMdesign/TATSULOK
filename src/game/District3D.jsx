@@ -1,150 +1,85 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  useCallback
-} from "react";
-
+import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-
-import PlayerController from "./PlayerController";
-import {
-  calculateDistance,
-  isNearObjective
-} from "./MissionSystem";
 
 export default function District3D({
   mission,
   onExit,
-  onComplete
+  onComplete,
 }) {
-  const containerRef = useRef(null);
+  const mountRef = useRef(null);
+  const audioRef = useRef(null);
 
-  const sceneRef = useRef(null);
-  const cameraRef = useRef(null);
-  const rendererRef = useRef(null);
-
-  const playerRef = useRef({
+  const keys = useRef({});
+  const joystick = useRef({
+    active: false,
     x: 0,
-    y: 2,
-    z: 8,
-    yaw: 0
+    y: 0,
   });
 
-  const [distance, setDistance] = useState(98);
-  const [nearObjective, setNearObjective] = useState(false);
-  const [dialogue, setDialogue] = useState(false);
+  const look = useRef({
+    active: false,
+    x: 0,
+    y: 0,
+  });
 
-  const createBuilding = useCallback(
-    (scene, x, z, width, height, depth) => {
-      const geometry = new THREE.BoxGeometry(
-        width,
-        height,
-        depth
-      );
+  const player = useRef({
+    x: 0,
+    y: 1.6,
+    z: 8,
+    yaw: 0,
+    pitch: 0,
+  });
 
-      const material = new THREE.MeshStandardMaterial({
-        color: 0x171d1f,
-        roughness: 0.9,
-        metalness: 0.1
-      });
+  const target = useRef({
+    x: 0,
+    z: -80,
+  });
 
-      const building = new THREE.Mesh(
-        geometry,
-        material
-      );
+  const [musicOn, setMusicOn] = useState(true);
+  const [sprinting, setSprinting] = useState(false);
+  const [distance, setDistance] = useState(94);
+  const [nearObjective, setNearObjective] =
+    useState(false);
 
-      building.position.set(
-        x,
-        height / 2,
-        z
-      );
+  const missionTitle =
+    mission?.title || "BAHA";
 
-      scene.add(building);
-
-      const windows = new THREE.MeshBasicMaterial({
-        color: 0x31484a
-      });
-
-      const rows = Math.max(2, Math.floor(height / 4));
-      const cols = Math.max(2, Math.floor(width / 3));
-
-      for (let row = 0; row < rows; row++) {
-        for (let col = 0; col < cols; col++) {
-          const windowGeometry =
-            new THREE.BoxGeometry(
-              0.7,
-              0.9,
-              0.05
-            );
-
-          const windowMesh = new THREE.Mesh(
-            windowGeometry,
-            windows
-          );
-
-          const px =
-            x -
-            width / 2 +
-            1.5 +
-            col * 3;
-
-          const py =
-            2 +
-            row * 3.5;
-
-          windowMesh.position.set(
-            px,
-            py,
-            z - depth / 2 - 0.03
-          );
-
-          scene.add(windowMesh);
-        }
-      }
-    },
-    []
-  );
+  const missionNumber =
+    mission?.number || "01";
 
   useEffect(() => {
-    const container = containerRef.current;
-
-    if (!container) return;
+    if (!mountRef.current) return;
 
     const scene = new THREE.Scene();
 
     scene.background = new THREE.Color(
-      0x071114
+      0x050807
     );
 
     scene.fog = new THREE.Fog(
-      0x071114,
-      35,
-      220
+      0x050807,
+      15,
+      150
     );
 
-    sceneRef.current = scene;
-
-    const camera = new THREE.PerspectiveCamera(
-      70,
-      container.clientWidth /
-        container.clientHeight,
-      0.1,
-      500
-    );
+    const camera =
+      new THREE.PerspectiveCamera(
+        70,
+        window.innerWidth /
+          window.innerHeight,
+        0.1,
+        300
+      );
 
     camera.position.set(
-      0,
-      2,
-      8
+      player.current.x,
+      player.current.y,
+      player.current.z
     );
-
-    cameraRef.current = camera;
 
     const renderer =
       new THREE.WebGLRenderer({
         antialias: true,
-        powerPreference: "high-performance"
       });
 
     renderer.setPixelRatio(
@@ -152,57 +87,52 @@ export default function District3D({
     );
 
     renderer.setSize(
-      container.clientWidth,
-      container.clientHeight
+      window.innerWidth,
+      window.innerHeight
     );
 
     renderer.shadowMap.enabled = true;
 
-    container.appendChild(
+    mountRef.current.appendChild(
       renderer.domElement
     );
 
-    rendererRef.current = renderer;
-
-    // LIGHTING
+    /* LIGHT */
 
     const ambient =
-      new THREE.HemisphereLight(
-        0x9fb4b5,
-        0x020304,
-        1.5
+      new THREE.AmbientLight(
+        0xffffff,
+        0.35
       );
 
     scene.add(ambient);
 
     const moon =
       new THREE.DirectionalLight(
-        0xffd36a,
-        2
+        0xffffff,
+        0.7
       );
 
     moon.position.set(
       30,
-      70,
+      50,
       20
     );
 
-    moon.castShadow = true;
-
     scene.add(moon);
 
-    // GROUND
+    /* GROUND */
 
     const groundGeometry =
       new THREE.PlaneGeometry(
-        300,
-        300
+        220,
+        220
       );
 
     const groundMaterial =
       new THREE.MeshStandardMaterial({
-        color: 0x101c1f,
-        roughness: 1
+        color: 0x19170d,
+        roughness: 1,
       });
 
     const ground =
@@ -218,18 +148,17 @@ export default function District3D({
 
     scene.add(ground);
 
-    // ROAD
+    /* ROAD */
 
     const roadGeometry =
       new THREE.PlaneGeometry(
-        22,
-        300
+        18,
+        220
       );
 
     const roadMaterial =
       new THREE.MeshStandardMaterial({
-        color: 0x101619,
-        roughness: 1
+        color: 0x222016,
       });
 
     const road =
@@ -242,269 +171,394 @@ export default function District3D({
       -Math.PI / 2;
 
     road.position.y =
-      0.02;
+      0.01;
 
     scene.add(road);
 
-    // SIDEWALKS
+    /* SIDEWALKS */
 
-    const sidewalkMaterial =
-      new THREE.MeshStandardMaterial({
-        color: 0x1d292b
-      });
-
-    [-15, 15].forEach((x) => {
+    [-12, 12].forEach((x) => {
       const sidewalk =
         new THREE.Mesh(
           new THREE.BoxGeometry(
-            8,
-            0.3,
-            300
+            5,
+            0.25,
+            220
           ),
-          sidewalkMaterial
+          new THREE.MeshStandardMaterial({
+            color: 0x303020,
+          })
         );
 
       sidewalk.position.set(
         x,
-        0.15,
+        0.12,
         0
       );
 
       scene.add(sidewalk);
     });
 
-    // BUILDINGS
+    /* BUILDINGS */
 
-    createBuilding(
-      scene,
-      -28,
-      -30,
-      18,
-      30,
-      35
-    );
-
-    createBuilding(
-      scene,
-      28,
-      -45,
-      22,
-      38,
-      42
-    );
-
-    createBuilding(
-      scene,
-      -30,
-      35,
-      20,
-      24,
-      30
-    );
-
-    createBuilding(
-      scene,
-      30,
-      50,
-      24,
-      32,
-      40
-    );
-
-    createBuilding(
-      scene,
-      -28,
-      -105,
-      20,
-      42,
-      38
-    );
-
-    createBuilding(
-      scene,
-      30,
-      -115,
-      22,
-      34,
-      40
-    );
-
-    // STREET LIGHTS
+    const buildingMaterial =
+      new THREE.MeshStandardMaterial({
+        color: 0x0c0e0c,
+        roughness: 1,
+      });
 
     for (
-      let z = -135;
-      z < 130;
-      z += 18
+      let z = -100;
+      z <= 100;
+      z += 16
     ) {
-      [-11, 11].forEach((x) => {
+      [-22, 22].forEach((x) => {
+        const width =
+          12 +
+          Math.random() * 5;
+
+        const height =
+          8 +
+          Math.random() * 18;
+
+        const depth =
+          11 +
+          Math.random() * 7;
+
+        const building =
+          new THREE.Mesh(
+            new THREE.BoxGeometry(
+              width,
+              height,
+              depth
+            ),
+            buildingMaterial
+          );
+
+        building.position.set(
+          x,
+          height / 2,
+          z
+        );
+
+        building.castShadow = true;
+        building.receiveShadow = true;
+
+        scene.add(building);
+      });
+    }
+
+    /* STREET LIGHTS */
+
+    for (
+      let z = -100;
+      z <= 100;
+      z += 12
+    ) {
+      [-8, 8].forEach((x) => {
         const pole =
           new THREE.Mesh(
             new THREE.CylinderGeometry(
-              0.08,
-              0.08,
-              5,
+              0.06,
+              0.06,
+              4,
               8
             ),
             new THREE.MeshStandardMaterial({
-              color: 0x252a2a
+              color: 0x33332b,
             })
           );
 
         pole.position.set(
           x,
-          2.5,
+          2,
           z
         );
 
         scene.add(pole);
 
-        const lamp =
+        const light =
           new THREE.PointLight(
-            0xffcc55,
-            3,
-            12
+            0xffc94a,
+            0.7,
+            9
           );
 
-        lamp.position.set(
+        light.position.set(
           x,
-          5,
+          4.2,
           z
         );
 
-        scene.add(lamp);
+        scene.add(light);
       });
     }
 
-    // OBJECTIVE
+    /* OBSTACLES */
 
-    const objectiveGroup =
-      new THREE.Group();
-
-    const marker =
-      new THREE.Mesh(
-        new THREE.OctahedronGeometry(
-          1.2,
-          0
-        ),
-        new THREE.MeshStandardMaterial({
-          color: 0xffc857,
-          emissive: 0xffa800,
-          emissiveIntensity: 2
-        })
-      );
-
-    marker.position.y = 5;
-
-    objectiveGroup.add(marker);
-
-    const objectiveBase =
-      new THREE.Mesh(
-        new THREE.BoxGeometry(
-          7,
-          0.15,
-          2.2
-        ),
-        new THREE.MeshBasicMaterial({
-          color: 0xd6a93a,
-          transparent: true,
-          opacity: 0.5
-        })
-      );
-
-    objectiveBase.position.y =
-      0.08;
-
-    objectiveGroup.add(
-      objectiveBase
-    );
-
-    objectiveGroup.position.set(
-      mission.objectivePosition.x,
-      0,
-      mission.objectivePosition.z
-    );
-
-    scene.add(objectiveGroup);
-
-    // VEHICLE
-
-    const car =
-      new THREE.Mesh(
-        new THREE.BoxGeometry(
-          3,
-          1,
-          5
-        ),
-        new THREE.MeshStandardMaterial({
-          color: 0x080b0c
-        })
-      );
-
-    car.position.set(
-      4,
-      0.6,
-      -45
-    );
-
-    scene.add(car);
-
-    // DEBRIS
-
-    for (let i = 0; i < 25; i++) {
-      const debris =
+    for (
+      let i = 0;
+      i < 18;
+      i++
+    ) {
+      const obstacle =
         new THREE.Mesh(
           new THREE.BoxGeometry(
-            Math.random() * 2 + 0.5,
-            Math.random() * 1 + 0.3,
-            Math.random() * 2 + 0.5
+            1.5 +
+              Math.random() * 2,
+            0.8 +
+              Math.random() * 1.2,
+            1.5 +
+              Math.random() * 2
           ),
           new THREE.MeshStandardMaterial({
-            color: 0x30383a
+            color: 0x28281d,
           })
         );
 
-      debris.position.set(
-        (Math.random() - 0.5) * 18,
-        0.4,
-        Math.random() * 180 - 90
+      obstacle.position.set(
+        -6 +
+          Math.random() * 12,
+        0.6,
+        -10 -
+          Math.random() * 100
       );
 
-      scene.add(debris);
+      scene.add(obstacle);
     }
 
-    const clock =
-      new THREE.Clock();
+    /* OBJECTIVE */
 
-    let animationFrame;
-
-    const animate = () => {
-      animationFrame =
-        requestAnimationFrame(
-          animate
-        );
-
-      const player =
-        playerRef.current;
-
-      camera.position.set(
-        player.x,
-        player.y,
-        player.z
+    const objective =
+      new THREE.Mesh(
+        new THREE.OctahedronGeometry(
+          1.1
+        ),
+        new THREE.MeshBasicMaterial({
+          color: 0xffc642,
+        })
       );
 
-      camera.rotation.order =
-        "YXZ";
+    objective.position.set(
+      target.current.x,
+      3,
+      target.current.z
+    );
 
-      camera.rotation.y =
-        player.yaw;
+    scene.add(objective);
 
-      marker.rotation.y +=
-        clock.getDelta() * 2;
+    const objectiveLight =
+      new THREE.PointLight(
+        0xffc642,
+        3,
+        15
+      );
+
+    objectiveLight.position.set(
+      target.current.x,
+      3,
+      target.current.z
+    );
+
+    scene.add(objectiveLight);
+
+    /* MUSIC */
+
+    const audio =
+      audioRef.current;
+
+    if (audio) {
+      audio.loop = true;
+      audio.volume = 0.45;
+
+      if (musicOn) {
+        audio
+          .play()
+          .catch(() => {});
+      }
+    }
+
+    /* RESIZE */
+
+    const handleResize = () => {
+      camera.aspect =
+        window.innerWidth /
+        window.innerHeight;
+
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(
+        window.innerWidth,
+        window.innerHeight
+      );
+    };
+
+    window.addEventListener(
+      "resize",
+      handleResize
+    );
+
+    /* KEYBOARD */
+
+    const down = (event) => {
+      keys.current[
+        event.key.toLowerCase()
+      ] = true;
+    };
+
+    const up = (event) => {
+      keys.current[
+        event.key.toLowerCase()
+      ] = false;
+    };
+
+    window.addEventListener(
+      "keydown",
+      down
+    );
+
+    window.addEventListener(
+      "keyup",
+      up
+    );
+
+    /* GAME LOOP */
+
+    let lastTime =
+      performance.now();
+
+    const animate = (
+      currentTime
+    ) => {
+      const delta =
+        Math.min(
+          (currentTime -
+            lastTime) /
+            1000,
+          0.05
+        );
+
+      lastTime =
+        currentTime;
+
+      const p =
+        player.current;
+
+      let forward = 0;
+      let strafe = 0;
+
+      /* KEYBOARD */
+
+      if (
+        keys.current.w ||
+        keys.current.arrowup
+      ) {
+        forward += 1;
+      }
+
+      if (
+        keys.current.s ||
+        keys.current.arrowdown
+      ) {
+        forward -= 1;
+      }
+
+      if (
+        keys.current.a ||
+        keys.current.arrowleft
+      ) {
+        strafe -= 1;
+      }
+
+      if (
+        keys.current.d ||
+        keys.current.arrowright
+      ) {
+        strafe += 1;
+      }
+
+      /* JOYSTICK */
+
+      forward +=
+        -joystick.current.y;
+
+      strafe +=
+        joystick.current.x;
+
+      const magnitude = Math.min(
+        1,
+        Math.sqrt(
+          forward * forward +
+            strafe * strafe
+        )
+      );
+
+      if (magnitude > 0.05) {
+        const speed =
+          sprinting
+            ? 9
+            : 5;
+
+        const move =
+          speed *
+          delta *
+          magnitude;
+
+        const yaw =
+          p.yaw;
+
+        p.x +=
+          Math.sin(yaw) *
+            forward *
+            move +
+          Math.cos(yaw) *
+            strafe *
+            move;
+
+        p.z +=
+          Math.cos(yaw) *
+            forward *
+            move -
+          Math.sin(yaw) *
+            strafe *
+            move;
+      }
+
+      /* CAMERA */
+
+      camera.position.set(
+        p.x,
+        p.y,
+        p.z
+      );
+
+      const direction =
+        new THREE.Vector3(
+          Math.sin(p.yaw),
+          Math.sin(p.pitch),
+          Math.cos(p.yaw)
+        );
+
+      camera.lookAt(
+        p.x + direction.x,
+        p.y + direction.y,
+        p.z + direction.z
+      );
+
+      /* OBJECTIVE DISTANCE */
+
+      const dx =
+        target.current.x -
+        p.x;
+
+      const dz =
+        target.current.z -
+        p.z;
 
       const currentDistance =
-        calculateDistance(
-          player,
-          mission.objectivePosition
+        Math.sqrt(
+          dx * dx +
+            dz * dz
         );
 
       setDistance(
@@ -516,261 +570,458 @@ export default function District3D({
         )
       );
 
-      setNearObjective(
-        isNearObjective(
-          player,
-          mission.objectivePosition,
-          5
-        )
-      );
+      if (
+        currentDistance < 4
+      ) {
+        setNearObjective(
+          true
+        );
+      } else {
+        setNearObjective(
+          false
+        );
+      }
+
+      if (
+        currentDistance < 2.5
+      ) {
+        onComplete?.();
+        return;
+      }
+
+      objective.rotation.y +=
+        delta * 1.5;
+
+      objective.position.y =
+        3 +
+        Math.sin(
+          currentTime * 0.003
+        ) *
+          0.25;
 
       renderer.render(
         scene,
         camera
       );
-    };
 
-    animate();
-
-    const resize = () => {
-      if (!container) return;
-
-      camera.aspect =
-        container.clientWidth /
-        container.clientHeight;
-
-      camera.updateProjectionMatrix();
-
-      renderer.setSize(
-        container.clientWidth,
-        container.clientHeight
+      requestAnimationFrame(
+        animate
       );
     };
 
-    window.addEventListener(
-      "resize",
-      resize
+    requestAnimationFrame(
+      animate
     );
 
     return () => {
-      cancelAnimationFrame(
-        animationFrame
+      window.removeEventListener(
+        "resize",
+        handleResize
       );
 
       window.removeEventListener(
-        "resize",
-        resize
+        "keydown",
+        down
       );
 
-      renderer.dispose();
+      window.removeEventListener(
+        "keyup",
+        up
+      );
 
       if (
-        renderer.domElement.parentNode
+        mountRef.current &&
+        renderer.domElement
       ) {
-        renderer.domElement.parentNode.removeChild(
+        mountRef.current.removeChild(
           renderer.domElement
         );
       }
+
+      renderer.dispose();
+
+      if (audio) {
+        audio.pause();
+      }
     };
-  }, [createBuilding, mission]);
+  }, [
+    sprinting,
+    musicOn,
+    onComplete,
+  ]);
 
-  const handleMove = useCallback(
-    ({ x, z }) => {
-      const player =
-        playerRef.current;
+  /* MUSIC */
 
-      const speed = 0.14;
+  const toggleMusic = () => {
+    const audio =
+      audioRef.current;
 
-      const yaw = player.yaw;
+    if (!audio) return;
 
-      const forwardX =
-        -Math.sin(yaw);
-
-      const forwardZ =
-        -Math.cos(yaw);
-
-      const rightX =
-        Math.cos(yaw);
-
-      const rightZ =
-        -Math.sin(yaw);
-
-      player.x +=
-        (forwardX * z +
-          rightX * x) *
-        speed;
-
-      player.z +=
-        (forwardZ * z +
-          rightZ * x) *
-        speed;
-
-      // WORLD BOUNDS
-
-      player.x =
-        Math.max(
-          -11,
-          Math.min(11, player.x)
-        );
-
-      player.z =
-        Math.max(
-          -145,
-          Math.min(130, player.z)
-        );
-    },
-    []
-  );
-
-  const handleLook = useCallback(
-    ({ x }) => {
-      playerRef.current.yaw -=
-        x * 0.004;
-    },
-    []
-  );
-
-  const interact = () => {
-    if (!nearObjective) return;
-
-    setDialogue(true);
+    if (musicOn) {
+      audio.pause();
+      setMusicOn(false);
+    } else {
+      audio
+        .play()
+        .catch(() => {});
+      setMusicOn(true);
+    }
   };
 
-  const completeMission = () => {
-    setDialogue(false);
-    onComplete?.();
+  /* JOYSTICK */
+
+  const handleJoystickStart = (
+    e
+  ) => {
+    e.preventDefault();
+
+    joystick.current.active =
+      true;
+
+    updateJoystick(e);
+  };
+
+  const updateJoystick = (
+    e
+  ) => {
+    if (
+      !joystick.current.active
+    )
+      return;
+
+    const touch =
+      e.touches?.[0] ||
+      e;
+
+    const rect =
+      e.currentTarget.getBoundingClientRect();
+
+    const centerX =
+      rect.left +
+      rect.width / 2;
+
+    const centerY =
+      rect.top +
+      rect.height / 2;
+
+    let x =
+      (touch.clientX -
+        centerX) /
+      (rect.width / 2);
+
+    let y =
+      (touch.clientY -
+        centerY) /
+      (rect.height / 2);
+
+    const length =
+      Math.sqrt(
+        x * x + y * y
+      );
+
+    if (length > 1) {
+      x /= length;
+      y /= length;
+    }
+
+    joystick.current.x =
+      x;
+
+    joystick.current.y =
+      y;
+  };
+
+  const stopJoystick = (
+    e
+  ) => {
+    e.preventDefault();
+
+    joystick.current.active =
+      false;
+
+    joystick.current.x = 0;
+    joystick.current.y = 0;
+  };
+
+  /* LOOK */
+
+  const startLook = (
+    e
+  ) => {
+    e.preventDefault();
+
+    look.current.active =
+      true;
+
+    const touch =
+      e.touches[0];
+
+    look.current.x =
+      touch.clientX;
+
+    look.current.y =
+      touch.clientY;
+  };
+
+  const moveLook = (
+    e
+  ) => {
+    if (
+      !look.current.active
+    )
+      return;
+
+    const touch =
+      e.touches[0];
+
+    const dx =
+      touch.clientX -
+      look.current.x;
+
+    const dy =
+      touch.clientY -
+      look.current.y;
+
+    look.current.x =
+      touch.clientX;
+
+    look.current.y =
+      touch.clientY;
+
+    player.current.yaw -=
+      dx * 0.004;
+
+    player.current.pitch -=
+      dy * 0.0025;
+
+    player.current.pitch =
+      Math.max(
+        -1.1,
+        Math.min(
+          1.1,
+          player.current.pitch
+        )
+      );
+  };
+
+  const stopLook = () => {
+    look.current.active =
+      false;
   };
 
   return (
-    <div className="game-screen">
+    <div className="district-game">
+      <audio
+        ref={audioRef}
+        src="/assets/music.mp4"
+        preload="auto"
+      />
+
       <div
-        ref={containerRef}
-        className="three-container"
+        ref={mountRef}
+        className="district-canvas"
+        onTouchStart={
+          startLook
+        }
+        onTouchMove={
+          moveLook
+        }
+        onTouchEnd={
+          stopLook
+        }
       />
 
-      <PlayerController
-        onMove={handleMove}
-        onLook={handleLook}
-      />
+      {/* TOP HUD */}
 
-      {/* TOP BAR */}
-
-      <div className="game-topbar">
+      <div className="game-top">
         <button
-          className="back-button"
+          className="game-back"
           onClick={onExit}
         >
           ← BACK
         </button>
 
-        <div>
-          <div className="game-kicker">
-            MISSION {mission.number}
-          </div>
+        <div className="game-title">
+          <small>
+            MISSION {missionNumber}
+          </small>
 
-          <div className="game-title">
-            {mission.category}
-          </div>
+          <strong>
+            {missionTitle}
+          </strong>
 
-          <div className="game-district">
-            {mission.district}
-          </div>
+          <span>
+            DISTRICT 7
+          </span>
         </div>
 
-        <div className="objective-box">
-          <span>OBJECTIVE</span>
-          <strong>{distance}m</strong>
+        <div className="objective-distance">
+          <small>
+            OBJECTIVE
+          </small>
+
+          <strong>
+            {distance}m
+          </strong>
         </div>
+
+        <button
+          className="music-button"
+          onClick={
+            toggleMusic
+          }
+        >
+          {musicOn
+            ? "🔊"
+            : "🔇"}
+        </button>
       </div>
 
-      {/* OBJECTIVE HUD */}
+      {/* CENTER OBJECTIVE */}
 
-      <div className="world-objective">
+      <div className="objective-marker">
         <div className="objective-diamond">
           ◆
         </div>
 
-        <div className="objective-label">
-          {mission.objective}
+        <div>
+          EVACUATION CENTER
         </div>
 
-        <div className="objective-distance">
+        <strong>
           {distance}m
-        </div>
+        </strong>
       </div>
 
-      {/* MISSION PANEL */}
+      {/* MISSION INFO */}
 
-      <div className="mission-panel">
-        <div className="mission-panel-label">
+      <div className="mission-objective-box">
+        <small>
           MISSION OBJECTIVE
-        </div>
+        </small>
 
         <h2>
-          {mission.objective}
+          EVACUATION CENTER
         </h2>
 
         <p>
-          {mission.description}
+          {mission?.description ||
+            "May emergency sa distrito. Matuklasan ang evacuation center at alamin kung ano ang tunay na nangyayari."}
         </p>
       </div>
 
-      {/* INTERACT */}
+      {/* JOYSTICK */}
 
-      {nearObjective && !dialogue && (
-        <button
-          className="interact-button"
-          onClick={interact}
-        >
-          INTERACT
-        </button>
-      )}
+      <div
+        className="movement-joystick"
+        onTouchStart={
+          handleJoystickStart
+        }
+        onTouchMove={
+          updateJoystick
+        }
+        onTouchEnd={
+          stopJoystick
+        }
+        onTouchCancel={
+          stopJoystick
+        }
+      >
+        <div className="joystick-arrows">
+          <span className="up">
+            ▲
+          </span>
 
-      {/* DIALOGUE */}
+          <span className="left">
+            ◀
+          </span>
 
-      {dialogue && (
-        <div className="dialogue-overlay">
-          <div className="dialogue-card">
-            <div className="dialogue-label">
-              MISSION EVENT
-            </div>
+          <span className="right">
+            ▶
+          </span>
 
-            <h2>
-              EVACUATION CENTER
-            </h2>
-
-            <p>
-              May mga taong nangangailangan
-              ng tulong. Ngunit may isang
-              bagay na hindi tugma sa
-              kuwento ng distrito.
-            </p>
-
-            <p className="dialogue-question">
-              Ano ang iyong gagawin?
-            </p>
-
-            <div className="choice-grid">
-              <button
-                onClick={completeMission}
-              >
-                TUMULONG
-              </button>
-
-              <button
-                onClick={completeMission}
-              >
-                MAGHANAP NG EBIDENSYA
-              </button>
-
-              <button
-                onClick={completeMission}
-              >
-                UMALIS
-              </button>
-            </div>
-          </div>
+          <span className="down">
+            ▼
+          </span>
         </div>
+
+        <div className="joystick-knob" />
+      </div>
+
+      {/* RIGHT CONTROLS */}
+
+      <div className="right-controls">
+        <button
+          className={
+            "control-button interact " +
+            (nearObjective
+              ? "available"
+              : "")
+          }
+          onClick={() => {
+            if (
+              nearObjective
+            ) {
+              onComplete?.();
+            }
+          }}
+        >
+          ✋
+        </button>
+
+        <button
+          className={
+            "control-button " +
+            (sprinting
+              ? "pressed"
+              : "")
+          }
+          onTouchStart={() =>
+            setSprinting(true)
+          }
+          onTouchEnd={() =>
+            setSprinting(false)
+          }
+          onMouseDown={() =>
+            setSprinting(true)
+          }
+          onMouseUp={() =>
+            setSprinting(false)
+          }
+        >
+          🏃
+        </button>
+
+        <button
+          className="control-button"
+          onClick={() =>
+            alert(
+              "Inventory — coming soon"
+            )
+          }
+        >
+          🎒
+        </button>
+      </div>
+
+      {/* CAMERA GUIDE */}
+
+      <div className="camera-hint">
+        SWIPE TO LOOK
+      </div>
+
+      {/* OBJECTIVE READY */}
+
+      {nearObjective && (
+        <button
+          className="objective-interact"
+          onClick={() =>
+            onComplete?.()
+          }
+        >
+          INTERACT — EVACUATION CENTER
+        </button>
       )}
     </div>
   );
