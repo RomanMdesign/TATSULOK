@@ -56,14 +56,57 @@ export default function App() {
   }, [playerName]);
 
   const selectCharacter = (character) => {
-    setSelectedCharacter(
-      character.id
-    );
+  setSelectedCharacter(character.id);
+  setActiveCharacter(character);
 
-    setActiveCharacter(
-      character
-    );
+  const characterAudio = {
+    peyudo: "/assets/peyudo.mp3",
+    misteryo: "/assets/misteryo.mp3",
+    bangag: "/assets/bangag.mp3",
+    pula: "/assets/pula.wav",
+    tanikala: "/assets/tanikala.mp3",
+    tisa: "/assets/tisa.mp3",
   };
+
+  // Stop currently playing character audio
+  if (window.tatsulokCharacterAudio) {
+    window.tatsulokCharacterAudio.pause();
+
+    try {
+      window.tatsulokCharacterAudio.currentTime = 0;
+    } catch (error) {
+      // Ignore reset errors
+    }
+  }
+
+  const audioFile = characterAudio[character.id];
+
+  // Characters without an assigned audio simply stop playback.
+  if (!audioFile) {
+    window.tatsulokCharacterAudio = null;
+    return;
+  }
+
+  const audio = new Audio(audioFile);
+
+  audio.preload = "auto";
+  audio.volume = 1.0;
+
+  window.tatsulokCharacterAudio = audio;
+
+  audio.play().catch((error) => {
+    console.error(
+      `Hindi ma-play ang audio ni ${character.name}:`,
+      error
+    );
+  });
+
+  audio.onended = () => {
+    if (window.tatsulokCharacterAudio === audio) {
+      window.tatsulokCharacterAudio = null;
+    }
+  };
+};
 
   const openMission = (mission) => {
     setSelectedMission(
