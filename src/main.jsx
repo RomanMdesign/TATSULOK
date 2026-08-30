@@ -3,24 +3,16 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./styles.css";
 
-/*
-  TATSULOK CHARACTER AUDIO
-  -------------------------
-  Pula     -> /assets/pula.wav
-  Tanikala -> /assets/tanikala.mp3
-
-  Kapag pinindot ang character card:
-  - hihinto ang dating character audio
-  - tutugtog ang bagong character audio
-  - mananatili ang existing App / Lobby / Characters / Dossier / Factions
-*/
-
 function CharacterAudioBridge() {
   const audioRef = useRef(null);
 
   const tracks = {
+    peyudo: "/assets/peyudo.mp4",
+    misteryo: "/assets/misteryo.mp4",
+    bangag: "/assets/bangag.mp4",
     pula: "/assets/pula.wav",
     tanikala: "/assets/tanikala.mp3",
+    tisa: "/assets/tisa.mp4",
   };
 
   useEffect(() => {
@@ -33,12 +25,11 @@ function CharacterAudioBridge() {
 
       try {
         current.currentTime = 0;
-      } catch {
-        // Ignore reset errors from an already-ended audio element.
-      }
+      } catch {}
 
       current.onended = null;
       current.onerror = null;
+
       audioRef.current = null;
     };
 
@@ -50,6 +41,7 @@ function CharacterAudioBridge() {
         return;
       }
 
+      // Stop previous character audio
       stopCurrentAudio();
 
       const audio = new Audio(source);
@@ -67,7 +59,7 @@ function CharacterAudioBridge() {
 
       audio.onerror = () => {
         console.error(
-          `Hindi ma-play ang audio para kay ${characterId}: ${source}`
+          `Hindi ma-play ang character audio: ${source}`
         );
 
         if (audioRef.current === audio) {
@@ -75,49 +67,49 @@ function CharacterAudioBridge() {
         }
       };
 
-      /*
-        Dahil ang click/touch event ang nag-trigger nito,
-        user-initiated ang playback at compatible ito sa
-        mobile/iPad browser autoplay restrictions.
-      */
       audio.play().catch((error) => {
         console.warn(
-          `Audio playback blocked para kay ${characterId}.`,
+          `Hindi pinayagan ng browser ang audio playback para kay ${characterId}.`,
           error
         );
       });
     };
 
-    const getCharacterIdFromCard = (card) => {
+    const identifyCharacter = (card) => {
       if (!card) return null;
 
-      /*
-        Sinusuri muna ang data-character attribute kung mayroon.
-        Halimbawa:
-        <button className="character-card" data-character="pula">
-      */
-      const dataCharacter = card.dataset?.character?.toLowerCase();
+      // Preferred method:
+      // <button data-character="pula">
+      const dataCharacter =
+        card.dataset?.character?.toLowerCase();
 
-      if (dataCharacter === "pula") return "pula";
-      if (dataCharacter === "tanikala") return "tanikala";
+      if (tracks[dataCharacter]) {
+        return dataCharacter;
+      }
 
-      /*
-        Fallback:
-        Kung ang existing card ay walang data-character,
-        babasahin ang text ng card.
-      */
+      // Fallback: basahin ang pangalan sa card
       const text = card.textContent
         .toLowerCase()
         .replace(/\s+/g, " ")
         .trim();
 
-      if (text.includes("tanikala")) return "tanikala";
-      if (text.includes("pula")) return "pula";
+      const characters = [
+        "peyudo",
+        "misteryo",
+        "bangag",
+        "pula",
+        "tanikala",
+        "tisa",
+      ];
 
-      return null;
+      return (
+        characters.find((character) =>
+          text.includes(character)
+        ) || null
+      );
     };
 
-    const handleCharacterClick = (event) => {
+    const handleCharacterPointer = (event) => {
       const target = event.target;
 
       if (!(target instanceof Element)) return;
@@ -128,7 +120,7 @@ function CharacterAudioBridge() {
 
       if (!card) return;
 
-      const characterId = getCharacterIdFromCard(card);
+      const characterId = identifyCharacter(card);
 
       if (characterId) {
         playCharacterAudio(characterId);
@@ -136,16 +128,21 @@ function CharacterAudioBridge() {
     };
 
     /*
-      Click para desktop + touch/pointer para iPad/mobile.
-      Pointerdown ang ginagamit para mas mabilis ang response
-      sa touch device.
+      Pointer event:
+      - iPad touch
+      - mobile touch
+      - mouse click
+      - desktop
     */
-    document.addEventListener("pointerdown", handleCharacterClick);
+    document.addEventListener(
+      "pointerdown",
+      handleCharacterPointer
+    );
 
     return () => {
       document.removeEventListener(
         "pointerdown",
-        handleCharacterClick
+        handleCharacterPointer
       );
 
       stopCurrentAudio();
@@ -155,7 +152,9 @@ function CharacterAudioBridge() {
   return null;
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(
+ReactDOM.createRoot(
+  document.getElementById("root")
+).render(
   <React.StrictMode>
     <App />
     <CharacterAudioBridge />
