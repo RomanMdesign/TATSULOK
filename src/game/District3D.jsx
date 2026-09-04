@@ -1,39 +1,42 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 /*
-TATSULOK — DISTRICT 3D
-Roblox-style third-person mission district
+  TATSULOK — DISTRICT 3D
+  ---------------------------------------------------------
+  THIRD-PERSON / ROBLOX-STYLE DISTRICT
 
-MISSION 01 FLOW:
-START
- ↓
-Residential street
- ↓
-Flooded road
- ↓
-Resident NPC
- ↓
-Investigate clue
- ↓
-Blocked street
- ↓
-Alternate route
- ↓
-Evacuation Center
- ↓
-INTERACT
+  MOBILE / IPAD
+  • Left joystick  = movement
+  • Drag right side = camera
+  • RUN             = sprint
+  • INTERACT        = interact
 
-DESKTOP:
-WASD / ARROWS = Move
-SHIFT = Run
-Mouse drag = Camera
+  DESKTOP
+  • WASD / ARROWS   = movement
+  • SHIFT           = run
+  • Mouse drag      = camera
+  • E              = interact
 
-MOBILE / IPAD:
-Left joystick = Move
-Drag right side = Camera
-RUN = Run
-INTERACT = Interact
+  MISSION 01 ROUTE
+  START
+    ↓
+  STREET
+    ↓
+  FLOODED AREA
+    ↓
+  SURVIVOR
+    ↓
+  CLUE
+    ↓
+  BLOCKED ROAD
+    ↓
+  SIDE STREET
+    ↓
+  RELIEF SUPPLIES
+    ↓
+  EVACUATION CENTER
 */
 
 export default function District3D({
@@ -44,48 +47,60 @@ export default function District3D({
 }) {
   const mountRef = useRef(null);
 
-  const sceneRef = useRef(null);
-  const cameraRef = useRef(null);
-  const rendererRef = useRef(null);
-
   const playerRef = useRef({
-    x: 0,
-    z: 8,
+    position: new THREE.Vector3(0, 0, 12),
+    velocity: new THREE.Vector3(),
     yaw: 0,
     cameraYaw: 0,
-    cameraPitch: 0.38,
-    speed: 4.8,
+    cameraPitch: 0.34,
     running: false,
+    grounded: true,
   });
 
   const keysRef = useRef({});
   const joystickRef = useRef({
     active: false,
+    pointerId: null,
     x: 0,
     y: 0,
   });
 
   const lookRef = useRef({
     active: false,
+    pointerId: null,
     x: 0,
     y: 0,
   });
 
-  const avatarRef = useRef(null);
-  const animationRef = useRef(null);
+  const playerGroupRef = useRef(null);
+  const cameraRef = useRef(null);
+  const rendererRef = useRef(null);
+  const sceneRef = useRef(null);
+  const clockRef = useRef(new THREE.Clock());
+  const frameRef = useRef(null);
+
+  const worldRef = useRef({
+    objectiveMarker: null,
+    objectiveArrow: null,
+    survivor: null,
+    clue: null,
+    supplies: null,
+    routeBlock: null,
+  });
+
+  const [objective, setObjective] = useState(
+    "REACH THE FLOODED AREA"
+  );
 
   const [distance, setDistance] = useState(0);
-  const [objective, setObjective] = useState(
-    "REACH THE FLOODED STREET"
-  );
-  const [interactText, setInteractText] =
-    useState("");
-  const [canInteract, setCanInteract] =
-    useState(false);
+  const [canInteract, setCanInteract] = useState(false);
+  const [interactLabel, setInteractLabel] =
+    useState("APPROACH");
 
   const [dialogue, setDialogue] = useState(null);
-  const [completed, setCompleted] = useState(false);
   const [running, setRunning] = useState(false);
+
+  const [stage, setStage] = useState(0);
 
   const missionTitle =
     mission?.title || "EVACUATION CENTER";
@@ -99,70 +114,173 @@ export default function District3D({
   const characterName =
     activeCharacter?.name || "PLAYER";
 
-  /* =========================================================
+  /* ========================================================
+     MISSION POSITIONS
+  ======================================================== */
+
+  const ROUTE = {
+    flood: new THREE.Vector3(0, 0, -18),
+    survivor: new THREE.Vector3(5, 0, -38),
+    clue: new THREE.Vector3(-5, 0, -52),
+    sideStreet: new THREE.Vector3(7, 0, -72),
+    supplies: new THREE.Vector3(-6, 0, -88),
+    evacuation: new THREE.Vector3(0, 0, -122),
+  };
+
+  const stages = [
+    {
+      name: "REACH THE FLOODED AREA",
+      position: ROUTE.flood,
+      interact: false,
+    },
+    {
+      name: "FIND THE SURVIVOR",
+      position: ROUTE.survivor,
+      interact: true,
+      label: "TALK",
+    },
+    {
+      name: "INVESTIGATE THE CLUE",
+      position: ROUTE.clue,
+      interact: true,
+      label: "INVESTIGATE",
+    },
+    {
+      name: "FIND ANOTHER WAY THROUGH",
+      position: ROUTE.sideStreet,
+      interact: false,
+    },
+    {
+      name: "COLLECT RELIEF SUPPLIES",
+      position: ROUTE.supplies,
+      interact: true,
+      label: "COLLECT",
+    },
+    {
+      name: "REACH THE EVACUATION CENTER",
+      position: ROUTE.evacuation,
+      interact: true,
+      label: "INTERACT",
+    },
+  ];
+
+  /* ========================================================
+     HELPERS
+  ======================================================== */
+
+  const makeMaterial = (
+    color,
+    options = {}
+  ) => {
+    return new THREE.MeshLambertMaterial({
+      color,
+      ...options,
+    });
+  };
+
+  const createBox = (
+    scene,
+    width,
+    height,
+    depth,
+    material,
+    x,
+    y,
+    z
+  ) => {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(
+        width,
+        height,
+        depth
+      ),
+      material
+    );
+
+    mesh.position.set(x, y, z);
+    scene.add(mesh);
+
+    return mesh;
+  };
+
+  /* ========================================================
      KEYBOARD
-  ========================================================= */
+  ======================================================== */
 
   useEffect(() => {
-    const down = (e) => {
-      keysRef.current[e.code] = true;
+    const down = (event) => {
+      keysRef.current[event.code] = true;
 
       if (
-        e.code === "ShiftLeft" ||
-        e.code === "ShiftRight"
+        event.code === "ShiftLeft" ||
+        event.code === "ShiftRight"
       ) {
-        setRunning(true);
         playerRef.current.running = true;
+        setRunning(true);
       }
 
-      if (
-        e.code === "KeyE" ||
-        e.code === "Enter"
-      ) {
+      if (event.code === "KeyE") {
         window.dispatchEvent(
-          new CustomEvent("tatsulok-interact")
+          new CustomEvent(
+            "tatsulok-interact"
+          )
         );
       }
     };
 
-    const up = (e) => {
-      keysRef.current[e.code] = false;
+    const up = (event) => {
+      keysRef.current[event.code] = false;
 
       if (
-        e.code === "ShiftLeft" ||
-        e.code === "ShiftRight"
+        event.code === "ShiftLeft" ||
+        event.code === "ShiftRight"
       ) {
-        setRunning(false);
         playerRef.current.running = false;
+        setRunning(false);
       }
     };
 
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
+    window.addEventListener(
+      "keydown",
+      down
+    );
+
+    window.addEventListener(
+      "keyup",
+      up
+    );
 
     return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
+      window.removeEventListener(
+        "keydown",
+        down
+      );
+
+      window.removeEventListener(
+        "keyup",
+        up
+      );
     };
   }, []);
 
-  /* =========================================================
+  /* ========================================================
      THREE WORLD
-  ========================================================= */
+  ======================================================== */
 
   useEffect(() => {
     const mount = mountRef.current;
+
     if (!mount) return;
 
     const scene = new THREE.Scene();
 
     scene.background =
-      new THREE.Color(0x8ed8ff);
+      new THREE.Color(0x182a35);
 
     scene.fog = new THREE.Fog(
-      0x8ed8ff,
+      0x182a35,
       70,
-      190
+      185
     );
 
     sceneRef.current = scene;
@@ -171,17 +289,17 @@ export default function District3D({
 
     const camera =
       new THREE.PerspectiveCamera(
-        65,
+        62,
         mount.clientWidth /
           mount.clientHeight,
         0.1,
-        300
+        250
       );
 
     camera.position.set(
       0,
-      5,
-      13
+      4,
+      18
     );
 
     cameraRef.current = camera;
@@ -198,7 +316,7 @@ export default function District3D({
     renderer.setPixelRatio(
       Math.min(
         window.devicePixelRatio || 1,
-        1.35
+        1.25
       )
     );
 
@@ -211,171 +329,129 @@ export default function District3D({
     renderer.outputColorSpace =
       THREE.SRGBColorSpace;
 
+    renderer.domElement.style.touchAction =
+      "none";
+
     mount.appendChild(
       renderer.domElement
     );
 
     rendererRef.current = renderer;
 
-    /* =======================================================
+    /* ======================================================
        MATERIALS
-    ======================================================= */
+    ====================================================== */
 
-    const mat = (color) =>
-      new THREE.MeshLambertMaterial({
-        color,
+    const groundMat =
+      makeMaterial(0x676d6d);
+
+    const roadMat =
+      makeMaterial(0x202a2d);
+
+    const sidewalkMat =
+      makeMaterial(0x9a9b98);
+
+    const concreteMat =
+      makeMaterial(0x747a79);
+
+    const darkConcrete =
+      makeMaterial(0x444a4b);
+
+    const brickMat =
+      makeMaterial(0x80594a);
+
+    const roofMat =
+      makeMaterial(0x303637);
+
+    const windowMat =
+      makeMaterial(0x24566b, {
+        emissive: 0x08242e,
       });
 
-    const groundMat = mat(0xc7c7bf);
-    const roadMat = mat(0x182d3d);
-    const sidewalkMat = mat(0xd9d9d2);
-    const buildingMat = mat(0xe0e1dc);
-    const buildingDark = mat(0x8e969b);
-    const brickMat = mat(0xb9795e);
-    const roofMat = mat(0x53616a);
-    const glassMat =
-      new THREE.MeshLambertMaterial({
-        color: 0x197fd0,
-        emissive: 0x063b70,
-      });
-
-    const woodMat = mat(0x8c4c24);
-    const treeMat = mat(0x08732c);
-    const trunkMat = mat(0x6a3e1f);
     const yellowMat =
       new THREE.MeshBasicMaterial({
-        color: 0xffc83d,
+        color: 0xffc52e,
       });
 
     const redMat =
-      new THREE.MeshBasicMaterial({
-        color: 0xd92727,
+      makeMaterial(0x8e2626);
+
+    const woodMat =
+      makeMaterial(0x714529);
+
+    const greenMat =
+      makeMaterial(0x245d3a);
+
+    const waterMat =
+      new THREE.MeshLambertMaterial({
+        color: 0x245f76,
+        transparent: true,
+        opacity: 0.78,
       });
 
-    const whiteMat = mat(0xffffff);
+    /* ======================================================
+       WORLD GROUND
+    ====================================================== */
 
-    /* =======================================================
-       HELPERS
-    ======================================================= */
-
-    const box = (
-      w,
-      h,
-      d,
-      material,
-      x,
-      y,
-      z
-    ) => {
-      const mesh = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          w,
-          h,
-          d
-        ),
-        material
-      );
-
-      mesh.position.set(
-        x,
-        y,
-        z
-      );
-
-      scene.add(mesh);
-
-      return mesh;
-    };
-
-    const cylinder = (
-      radius,
-      height,
-      material,
-      x,
-      y,
-      z
-    ) => {
-      const mesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(
-          radius,
-          radius,
-          height,
-          8
-        ),
-        material
-      );
-
-      mesh.position.set(
-        x,
-        y,
-        z
-      );
-
-      scene.add(mesh);
-
-      return mesh;
-    };
-
-    /* =======================================================
-       GROUND
-    ======================================================= */
-
-    box(
-      130,
-      0.3,
-      220,
+    createBox(
+      scene,
+      120,
+      0.35,
+      230,
       groundMat,
       0,
-      -0.15,
-      -70
+      -0.2,
+      -55
     );
 
-    /* =======================================================
-       MAIN ROAD
-    ======================================================= */
+    /* ======================================================
+       MAIN STREET
+    ====================================================== */
 
-    box(
-      18,
+    createBox(
+      scene,
+      20,
       0.12,
       210,
       roadMat,
       0,
       0,
-      -70
+      -55
     );
 
-    /* SIDEWALKS */
-
-    box(
+    createBox(
+      scene,
       8,
-      0.25,
+      0.2,
       210,
       sidewalkMat,
-      -13,
+      -14,
       0.1,
-      -70
+      -55
     );
 
-    box(
+    createBox(
+      scene,
       8,
-      0.25,
+      0.2,
       210,
       sidewalkMat,
-      13,
+      14,
       0.1,
-      -70
+      -55
     );
 
-    /* ROAD MARKINGS */
+    /* ROAD CENTER */
 
     for (
-      let z = 5;
-      z > -175;
+      let z = 12;
+      z > -165;
       z -= 8
     ) {
-      box(
+      createBox(
+        scene,
         0.18,
-        0.03,
+        0.035,
         3.5,
         yellowMat,
         0,
@@ -384,190 +460,269 @@ export default function District3D({
       );
     }
 
-    /* =======================================================
-       BUILDING FUNCTION
-    ======================================================= */
+    /* ======================================================
+       SIDE ROADS
+    ====================================================== */
 
-    const building = (
+    createBox(
+      scene,
+      42,
+      0.12,
+      12,
+      roadMat,
+      -18,
+      0,
+      -74
+    );
+
+    createBox(
+      scene,
+      38,
+      0.12,
+      12,
+      roadMat,
+      18,
+      0,
+      -101
+    );
+
+    /* ======================================================
+       BUILDINGS
+    ====================================================== */
+
+    const createBuilding = ({
       x,
       z,
-      w,
-      h,
-      d,
-      type = 0
-    ) => {
-      box(
-        w,
-        h,
-        d,
-        type === 0
-          ? buildingMat
-          : buildingDark,
-        x,
-        h / 2,
-        z
-      );
+      width,
+      depth,
+      height,
+      color,
+    }) => {
+      const body =
+        createBox(
+          scene,
+          width,
+          height,
+          depth,
+          makeMaterial(color),
+          x,
+          height / 2,
+          z
+        );
 
-      /* roof */
+      body.userData.blocking = true;
 
-      box(
-        w + 0.4,
-        0.3,
-        d + 0.4,
+      createBox(
+        scene,
+        width + 0.5,
+        0.35,
+        depth + 0.5,
         roofMat,
         x,
-        h + 0.15,
+        height + 0.15,
         z
       );
 
-      /* windows */
+      /* front windows */
 
-      const side =
-        x < 0 ? 1 : -1;
+      const frontZ =
+        z + depth / 2 + 0.03;
 
-      const frontX =
-        x +
-        side *
-          (w / 2 + 0.025);
+      const columns =
+        Math.max(
+          2,
+          Math.floor(width / 3)
+        );
+
+      const rows =
+        Math.max(
+          2,
+          Math.floor(height / 3)
+        );
 
       for (
         let row = 0;
-        row < Math.min(
-          4,
-          Math.floor(h / 2.5)
-        );
+        row < rows;
         row++
       ) {
         for (
           let col = 0;
-          col < 3;
+          col < columns;
           col++
         ) {
-          box(
+          const wx =
+            x -
+            width / 2 +
+            1.4 +
+            col * 2.7;
+
+          const wy =
+            2 +
+            row * 2.7;
+
+          createBox(
+            scene,
+            1.15,
+            1.1,
             0.08,
-            1.0,
-            1.45,
-            glassMat,
-            frontX,
-            1.8 +
-              row * 2.25,
-            z -
-              d / 2 +
-              2 +
-              col * 2.4
+            windowMat,
+            wx,
+            wy,
+            frontZ
           );
         }
       }
     };
 
-    /* =======================================================
-       DISTRICT BUILDINGS
-    ======================================================= */
+    /* LEFT DISTRICT */
 
-    building(
-      -23,
-      -5,
-      15,
-      13,
-      15,
-      0
-    );
+    createBuilding({
+      x: -25,
+      z: -5,
+      width: 18,
+      depth: 17,
+      height: 14,
+      color: 0x6e7372,
+    });
 
-    building(
-      24,
-      -10,
-      16,
-      16,
-      17,
-      1
-    );
+    createBuilding({
+      x: -25,
+      z: -32,
+      width: 16,
+      depth: 16,
+      height: 10,
+      color: 0x825d4f,
+    });
 
-    building(
-      -24,
-      -29,
-      17,
-      11,
-      16,
-      1
-    );
+    createBuilding({
+      x: -25,
+      z: -58,
+      width: 18,
+      depth: 18,
+      height: 15,
+      color: 0x666c6b,
+    });
 
-    building(
-      23,
-      -34,
-      15,
-      14,
-      15,
-      0
-    );
+    createBuilding({
+      x: -25,
+      z: -91,
+      width: 17,
+      depth: 17,
+      height: 12,
+      color: 0x7c6256,
+    });
 
-    building(
-      -24,
-      -58,
-      16,
-      15,
-      17,
-      0
-    );
+    createBuilding({
+      x: -25,
+      z: -122,
+      width: 19,
+      depth: 17,
+      height: 14,
+      color: 0x646b6b,
+    });
 
-    building(
-      24,
-      -61,
-      17,
-      12,
-      15,
-      1
-    );
+    /* RIGHT DISTRICT */
 
-    building(
-      -24,
-      -90,
-      16,
-      14,
-      16,
-      1
-    );
+    createBuilding({
+      x: 25,
+      z: -8,
+      width: 18,
+      depth: 18,
+      height: 17,
+      color: 0x60696b,
+    });
 
-    building(
-      23,
-      -93,
-      17,
-      17,
-      18,
-      0
-    );
+    createBuilding({
+      x: 25,
+      z: -35,
+      width: 17,
+      depth: 17,
+      height: 13,
+      color: 0x78584c,
+    });
 
-    building(
-      -24,
-      -121,
-      17,
-      11,
-      15,
-      0
-    );
+    createBuilding({
+      x: 25,
+      z: -61,
+      width: 18,
+      depth: 18,
+      height: 16,
+      color: 0x696f6f,
+    });
 
-    building(
-      24,
-      -126,
-      18,
-      15,
-      16,
-      1
-    );
+    createBuilding({
+      x: 25,
+      z: -92,
+      width: 17,
+      depth: 17,
+      height: 11,
+      color: 0x7b6155,
+    });
 
-    /* =======================================================
-       TREES
-    ======================================================= */
+    createBuilding({
+      x: 25,
+      z: -122,
+      width: 20,
+      depth: 18,
+      height: 15,
+      color: 0x626a6b,
+    });
 
-    const palm = (
+    /* ======================================================
+       STREET POLES
+    ====================================================== */
+
+    for (
+      let z = 8;
+      z > -155;
+      z -= 13
+    ) {
+      [-1, 1].forEach(
+        (side) => {
+          const x =
+            side * 8.8;
+
+          createBox(
+            scene,
+            0.12,
+            5,
+            0.12,
+            darkConcrete,
+            x,
+            2.5,
+            z
+          );
+
+          createBox(
+            scene,
+            0.55,
+            0.18,
+            0.55,
+            yellowMat,
+            x,
+            5.05,
+            z
+          );
+        }
+      );
+    }
+
+    /* ======================================================
+       PALM / TREES
+    ====================================================== */
+
+    const createTree = (
       x,
       z
     ) => {
-      cylinder(
-        0.25,
-        5,
-        trunkMat,
+      createBox(
+        scene,
+        0.45,
+        4.5,
+        0.45,
+        woodMat,
         x,
-        2.5,
+        2.25,
         z
       );
 
@@ -576,7 +731,7 @@ export default function District3D({
 
       crown.position.set(
         x,
-        5.2,
+        5,
         z
       );
 
@@ -584,411 +739,395 @@ export default function District3D({
 
       for (
         let i = 0;
-        i < 6;
+        i < 7;
         i++
       ) {
         const leaf =
           new THREE.Mesh(
             new THREE.ConeGeometry(
-              0.8,
-              4,
+              0.7,
+              3.2,
               5
             ),
-            treeMat
+            greenMat
           );
 
         leaf.rotation.z =
-          Math.PI / 2.5;
+          Math.PI / 2.2;
 
         leaf.rotation.y =
-          (i / 6) *
-          Math.PI *
-          2;
-
-        leaf.position.y = 0;
+          (Math.PI * 2 * i) /
+          7;
 
         crown.add(leaf);
       }
     };
 
-    palm(-8, -18);
-    palm(8, -25);
-    palm(-8, -47);
-    palm(8, -52);
-    palm(-8, -83);
-    palm(8, -88);
-    palm(-8, -112);
-    palm(8, -118);
+    createTree(-9, -14);
+    createTree(9, -23);
+    createTree(-9, -45);
+    createTree(9, -51);
+    createTree(-9, -78);
+    createTree(9, -82);
+    createTree(-9, -112);
+    createTree(9, -116);
 
-    /* =======================================================
-       BENCHES
-    ======================================================= */
-
-    const bench = (
-      x,
-      z
-    ) => {
-      box(
-        2.6,
-        0.22,
-        0.55,
-        woodMat,
-        x,
-        1,
-        z
-      );
-
-      box(
-        0.18,
-        0.9,
-        0.18,
-        woodMat,
-        x - 0.9,
-        0.5,
-        z
-      );
-
-      box(
-        0.18,
-        0.9,
-        0.18,
-        woodMat,
-        x + 0.9,
-        0.5,
-        z
-      );
-    };
-
-    bench(-7, -17);
-    bench(7, -22);
-    bench(-7, -42);
-    bench(7, -45);
-
-    /* =======================================================
-       STREET LIGHTS
-    ======================================================= */
-
-    for (
-      let z = 2;
-      z > -145;
-      z -= 14
-    ) {
-      [-1, 1].forEach(
-        (side) => {
-          const x =
-            side * 8.7;
-
-          cylinder(
-            0.08,
-            4.5,
-            buildingDark,
-            x,
-            2.25,
-            z
-          );
-
-          box(
-            0.5,
-            0.22,
-            0.5,
-            yellowMat,
-            x,
-            4.5,
-            z
-          );
-        }
-      );
-    }
-
-    /* =======================================================
-       FLOODED STREET
-    ======================================================= */
+    /* ======================================================
+       FLOODED AREA
+    ====================================================== */
 
     const water =
       new THREE.Mesh(
         new THREE.BoxGeometry(
-          17,
-          0.12,
-          18
+          19,
+          0.16,
+          22
         ),
-        new THREE.MeshLambertMaterial({
-          color: 0x2278a5,
-          transparent: true,
-          opacity: 0.72,
-        })
+        waterMat
       );
 
     water.position.set(
       0,
       0.12,
-      -37
+      -20
     );
 
     scene.add(water);
 
-    /* floating debris */
+    /* water debris */
 
     for (
       let i = 0;
-      i < 8;
+      i < 12;
       i++
     ) {
-      box(
-        0.8 + Math.random(),
-        0.25,
-        0.4,
-        woodMat,
-        -6 +
-          Math.random() *
-            12,
+      const debris =
+        new THREE.Mesh(
+          new THREE.BoxGeometry(
+            0.8 +
+              Math.random(),
+            0.22,
+            0.4
+          ),
+          woodMat
+        );
+
+      debris.position.set(
+        -8 +
+          Math.random() * 16,
         0.35,
-        -31 -
-          Math.random() *
-            12
+        -12 -
+          Math.random() * 17
       );
+
+      debris.rotation.y =
+        Math.random() * Math.PI;
+
+      scene.add(debris);
     }
 
-    /* =======================================================
-       NPC RESIDENT
-    ======================================================= */
+    /* ======================================================
+       SURVIVOR
+    ====================================================== */
 
     const createNPC = (
       x,
       z
     ) => {
-      const group =
+      const npc =
         new THREE.Group();
 
-      group.position.set(
+      npc.position.set(
         x,
         0,
         z
       );
 
-      scene.add(group);
+      scene.add(npc);
 
       const body =
         new THREE.Mesh(
-          new THREE.CylinderGeometry(
-            0.48,
-            0.58,
-            1.5,
+          new THREE.CapsuleGeometry(
+            0.42,
+            0.9,
+            4,
             8
           ),
-          new THREE.MeshLambertMaterial({
-            color: 0x273d63,
-          })
+          makeMaterial(0x274a56)
         );
 
       body.position.y =
-        1.1;
+        1.0;
 
-      group.add(body);
+      npc.add(body);
 
       const head =
         new THREE.Mesh(
           new THREE.SphereGeometry(
-            0.43,
-            8,
-            6
+            0.42,
+            10,
+            8
           ),
-          new THREE.MeshLambertMaterial({
-            color: 0xc88963,
-          })
+          makeMaterial(0xc88b69)
         );
 
       head.position.y =
-        2.25;
+        2.05;
 
-      group.add(head);
+      npc.add(head);
 
-      const arm1 =
-        new THREE.Mesh(
-          new THREE.BoxGeometry(
-            0.22,
-            1.1,
-            0.22
-          ),
-          whiteMat
-        );
-
-      arm1.position.set(
-        -0.65,
-        1.2,
-        0
-      );
-
-      group.add(arm1);
-
-      const arm2 =
-        arm1.clone();
-
-      arm2.position.x =
-        0.65;
-
-      group.add(arm2);
-
-      return group;
+      return npc;
     };
 
-    const npc =
+    const survivor =
       createNPC(
-        5.2,
-        -50
+        5,
+        -38
       );
 
-    /* =======================================================
-       BLOCKADE
-    ======================================================= */
+    worldRef.current.survivor =
+      survivor;
 
-    const blockadeZ =
-      -67;
-
-    box(
-      12,
-      1.1,
-      0.4,
-      redMat,
-      0,
-      1,
-      blockadeZ
-    );
-
-    box(
-      0.3,
-      2.5,
-      0.3,
-      buildingDark,
-      -6,
-      1.25,
-      blockadeZ
-    );
-
-    box(
-      0.3,
-      2.5,
-      0.3,
-      buildingDark,
-      6,
-      1.25,
-      blockadeZ
-    );
-
-    /* =======================================================
-       CLUE OBJECT
-    ======================================================= */
+    /* ======================================================
+       CLUE
+    ====================================================== */
 
     const clue =
-      new THREE.Mesh(
-        new THREE.BoxGeometry(
-          1.0,
-          1.0,
-          0.15
-        ),
-        yellowMat
-      );
+      new THREE.Group();
 
     clue.position.set(
       -5,
-      0.7,
-      -56
+      0,
+      -52
     );
 
     scene.add(clue);
 
-    /* =======================================================
-       EVACUATION CENTER
-    ======================================================= */
+    const clueBox =
+      new THREE.Mesh(
+        new THREE.BoxGeometry(
+          1.4,
+          0.9,
+          0.18
+        ),
+        yellowMat
+      );
 
-    const evacZ =
-      -108;
+    clueBox.position.y =
+      0.8;
 
-    box(
-      18,
-      8,
-      14,
-      buildingMat,
+    clue.add(clueBox);
+
+    worldRef.current.clue =
+      clue;
+
+    /* ======================================================
+       BLOCKADE
+    ====================================================== */
+
+    const blockade =
+      new THREE.Group();
+
+    blockade.position.set(
       0,
-      4,
-      evacZ
+      0,
+      -68
     );
 
-    box(
-      19,
+    scene.add(blockade);
+
+    createBox(
+      blockade,
+      14,
+      1.0,
       0.4,
-      15,
+      redMat,
+      0,
+      1.0,
+      0
+    );
+
+    createBox(
+      blockade,
+      0.3,
+      2.5,
+      0.3,
+      darkConcrete,
+      -6,
+      1.25,
+      0
+    );
+
+    createBox(
+      blockade,
+      0.3,
+      2.5,
+      0.3,
+      darkConcrete,
+      6,
+      1.25,
+      0
+    );
+
+    worldRef.current.routeBlock =
+      blockade;
+
+    /* ======================================================
+       RELIEF SUPPLIES
+    ====================================================== */
+
+    const supplies =
+      new THREE.Group();
+
+    supplies.position.set(
+      -6,
+      0,
+      -88
+    );
+
+    scene.add(supplies);
+
+    for (
+      let i = 0;
+      i < 3;
+      i++
+    ) {
+      createBox(
+        supplies,
+        1.1,
+        0.8,
+        1.0,
+        woodMat,
+        i * 1.15,
+        0.4,
+        0
+      );
+    }
+
+    worldRef.current.supplies =
+      supplies;
+
+    /* ======================================================
+       EVACUATION CENTER
+    ====================================================== */
+
+    const evac =
+      new THREE.Group();
+
+    evac.position.set(
+      0,
+      0,
+      -122
+    );
+
+    scene.add(evac);
+
+    createBox(
+      evac,
+      22,
+      9,
+      16,
+      concreteMat,
+      0,
+      4.5,
+      0
+    );
+
+    createBox(
+      evac,
+      23,
+      0.4,
+      17,
       roofMat,
       0,
-      8.2,
-      evacZ
+      9.2,
+      0
     );
 
     /* entrance */
 
-    box(
+    createBox(
+      evac,
       5,
       5,
       0.25,
-      buildingDark,
+      darkConcrete,
       0,
       2.5,
-      evacZ + 7.1
+      8.1
     );
 
-    /* red emergency sign */
+    /* sign */
 
-    box(
-      10,
-      0.5,
-      0.2,
+    createBox(
+      evac,
+      12,
+      0.7,
+      0.3,
       redMat,
       0,
-      6.4,
-      evacZ + 7.2
+      6.5,
+      8.25
     );
 
-    /* =======================================================
-       OBJECTIVE BEACON
-    ======================================================= */
+    /* ======================================================
+       OBJECTIVE MARKER
+    ====================================================== */
 
-    const beacon =
+    const marker =
       new THREE.Group();
 
-    beacon.position.set(
-      0,
-      5,
-      evacZ + 8
-    );
+    scene.add(marker);
 
-    scene.add(beacon);
-
-    const diamond =
+    const markerDiamond =
       new THREE.Mesh(
         new THREE.OctahedronGeometry(
-          0.8,
+          0.75,
           0
         ),
         yellowMat
       );
 
-    beacon.add(diamond);
+    markerDiamond.position.y =
+      6;
 
-    /* =======================================================
+    marker.add(markerDiamond);
+
+    const markerBeam =
+      new THREE.Mesh(
+        new THREE.CylinderGeometry(
+          0.035,
+          0.035,
+          5,
+          6
+        ),
+        yellowMat
+      );
+
+    markerBeam.position.y =
+      3;
+
+    marker.add(markerBeam);
+
+    worldRef.current.objectiveMarker =
+      marker;
+
+    /* ======================================================
        LIGHTING
-    ======================================================= */
+    ====================================================== */
 
     scene.add(
       new THREE.HemisphereLight(
-        0xffffff,
-        0x43534a,
-        1.7
+        0xcee8ff,
+        0x18211f,
+        1.8
       )
     );
 
     const sun =
       new THREE.DirectionalLight(
-        0xffffff,
-        1.8
+        0xfff0d0,
+        1.35
       );
 
     sun.position.set(
@@ -999,138 +1138,351 @@ export default function District3D({
 
     scene.add(sun);
 
-    /* =======================================================
-       PLAYER AVATAR
-    ======================================================= */
+    /* ======================================================
+       PLAYER
+    ====================================================== */
 
     const player =
       new THREE.Group();
 
     scene.add(player);
 
-    const playerBody =
-      new THREE.Mesh(
-        new THREE.CapsuleGeometry(
-          0.42,
-          0.95,
-          4,
-          8
-        ),
-        new THREE.MeshLambertMaterial({
-          color:
-            activeCharacter?.faction ===
-            "PANGINOON"
-              ? 0x22252b
-              : activeCharacter?.faction ===
-                "MALAKAS"
-              ? 0x234f58
-              : 0x1d6972,
-        })
-      );
-
-    playerBody.position.y =
-      1.05;
-
-    player.add(playerBody);
-
-    const playerHead =
-      new THREE.Mesh(
-        new THREE.SphereGeometry(
-          0.42,
-          8,
-          6
-        ),
-        new THREE.MeshLambertMaterial({
-          color: 0xc78a67,
-        })
-      );
-
-    playerHead.position.y =
-      2.05;
-
-    player.add(playerHead);
-
-    const leg1 =
-      new THREE.Mesh(
-        new THREE.BoxGeometry(
-          0.3,
-          0.9,
-          0.35
-        ),
-        buildingDark
-      );
-
-    leg1.position.set(
-      -0.22,
-      0.45,
-      0
-    );
-
-    player.add(leg1);
-
-    const leg2 =
-      leg1.clone();
-
-    leg2.position.x =
-      0.22;
-
-    player.add(leg2);
-
-    avatarRef.current =
+    playerGroupRef.current =
       player;
 
-    /* =======================================================
-       COLLISION
-    ======================================================= */
+    /*
+      Try loading the actual character GLB.
+      If it doesn't exist, automatically use
+      the lightweight fallback character.
+    */
 
-    const blocked = (
+    const loader =
+      new GLTFLoader();
+
+    const modelPath =
+      `/assets/models/${
+        activeCharacter?.id ||
+        "misteryo"
+      }.glb`;
+
+    loader.load(
+      modelPath,
+      (gltf) => {
+        const model =
+          gltf.scene;
+
+        const box3 =
+          new THREE.Box3()
+            .setFromObject(model);
+
+        const size =
+          box3.getSize(
+            new THREE.Vector3()
+          );
+
+        const maxSize =
+          Math.max(
+            size.x,
+            size.y,
+            size.z
+          );
+
+        const scale =
+          2.15 / maxSize;
+
+        model.scale.setScalar(
+          scale
+        );
+
+        const normalized =
+          new THREE.Box3()
+            .setFromObject(model);
+
+        const center =
+          normalized.getCenter(
+            new THREE.Vector3()
+          );
+
+        model.position.sub(
+          center
+        );
+
+        model.position.y =
+          1.05;
+
+        player.add(model);
+      },
+      undefined,
+      () => {
+        createFallbackPlayer();
+      }
+    );
+
+    function createFallbackPlayer() {
+      if (
+        player.children.length
+      ) {
+        return;
+      }
+
+      const faction =
+        activeCharacter?.faction;
+
+      const bodyColor =
+        faction === "PANGINOON"
+          ? 0x9e2525
+          : faction === "MALAKAS"
+          ? 0x20586a
+          : 0x147c7c;
+
+      const body =
+        new THREE.Mesh(
+          new THREE.CapsuleGeometry(
+            0.42,
+            1.0,
+            4,
+            8
+          ),
+          makeMaterial(bodyColor)
+        );
+
+      body.position.y =
+        1.15;
+
+      player.add(body);
+
+      const head =
+        new THREE.Mesh(
+          new THREE.SphereGeometry(
+            0.43,
+            10,
+            8
+          ),
+          makeMaterial(0xc78966)
+        );
+
+      head.position.y =
+        2.35;
+
+      player.add(head);
+
+      const legMaterial =
+        makeMaterial(0x1b2022);
+
+      const leftLeg =
+        new THREE.Mesh(
+          new THREE.BoxGeometry(
+            0.32,
+            0.9,
+            0.38
+          ),
+          legMaterial
+        );
+
+      leftLeg.position.set(
+        -0.22,
+        0.45,
+        0
+      );
+
+      player.add(leftLeg);
+
+      const rightLeg =
+        leftLeg.clone();
+
+      rightLeg.position.x =
+        0.22;
+
+      player.add(rightLeg);
+    }
+
+    /* ======================================================
+       COLLISION SYSTEM
+    ====================================================== */
+
+    const collisionBoxes = [];
+
+    const addCollision = (
+      x,
+      z,
+      width,
+      depth
+    ) => {
+      collisionBoxes.push({
+        x,
+        z,
+        halfW:
+          width / 2,
+        halfD:
+          depth / 2,
+      });
+    };
+
+    /*
+      Building collision zones.
+    */
+
+    addCollision(
+      -25,
+      -5,
+      18,
+      17
+    );
+
+    addCollision(
+      25,
+      -8,
+      18,
+      18
+    );
+
+    addCollision(
+      -25,
+      -32,
+      16,
+      16
+    );
+
+    addCollision(
+      25,
+      -35,
+      17,
+      17
+    );
+
+    addCollision(
+      -25,
+      -58,
+      18,
+      18
+    );
+
+    addCollision(
+      25,
+      -61,
+      18,
+      18
+    );
+
+    addCollision(
+      -25,
+      -91,
+      17,
+      17
+    );
+
+    addCollision(
+      25,
+      -92,
+      17,
+      17
+    );
+
+    addCollision(
+      -25,
+      -122,
+      19,
+      17
+    );
+
+    addCollision(
+      25,
+      -122,
+      20,
+      18
+    );
+
+    const isBlocked = (
       x,
       z
     ) => {
-      /*
-        Keep player in playable streets.
-      */
-
-      if (x < -8.4) {
-        return true;
-      }
-
-      if (x > 8.4) {
-        return true;
-      }
+      const radius =
+        0.65;
 
       /*
-        Evacuation center.
+        World boundaries
       */
 
       if (
-        Math.abs(x) < 9 &&
-        Math.abs(z - evacZ) < 7
+        x < -8.9 ||
+        x > 8.9
+      ) {
+        /*
+          allow side streets
+        */
+
+        if (
+          z > -79 &&
+          z < -69
+        ) {
+          return false;
+        }
+
+        if (
+          z > -106 &&
+          z < -96
+        ) {
+          return false;
+        }
+
+        return true;
+      }
+
+      /*
+        Building collision
+      */
+
+      for (
+        const box of collisionBoxes
+      ) {
+        if (
+          x >
+            box.x -
+              box.halfW -
+              radius &&
+          x <
+            box.x +
+              box.halfW +
+              radius &&
+          z >
+            box.z -
+              box.halfD -
+              radius &&
+          z <
+            box.z +
+              box.halfD +
+              radius
+        ) {
+          return true;
+        }
+      }
+
+      /*
+        Blockade
+      */
+
+      if (
+        z < -67 &&
+        z > -70 &&
+        Math.abs(x) < 6.8
       ) {
         return true;
       }
 
       /*
-        Building zones.
+        Evacuation building
       */
 
-      const zones = [
-        [-23, -5, 8, 8],
-        [24, -10, 9, 9],
-        [-24, -29, 9, 9],
-        [23, -34, 8, 8],
-        [-24, -58, 9, 9],
-        [24, -61, 9, 9],
-        [-24, -90, 9, 9],
-        [23, -93, 9, 9],
-      ];
+      if (
+        z < -114 &&
+        Math.abs(x) < 10
+      ) {
+        /*
+          entrance opening
+        */
 
-      for (const zone of zones) {
         if (
-          Math.abs(x - zone[0]) <
-            zone[2] &&
-          Math.abs(z - zone[1]) <
-            zone[3]
+          Math.abs(x) > 2.8
         ) {
           return true;
         }
@@ -1139,186 +1491,473 @@ export default function District3D({
       return false;
     };
 
-    /* =======================================================
-       MISSION STATE
-    ======================================================= */
+    /* ======================================================
+       SMOOTH MOVEMENT
+    ====================================================== */
 
-    let missionStage = 0;
+    const getInput = () => {
+      let x = 0;
+      let y = 0;
 
-    const stageData = [
-      {
-        text: "REACH THE FLOODED STREET",
-        z: -30,
-      },
-      {
-        text: "FIND THE RESIDENT",
-        z: -50,
-      },
-      {
-        text: "INVESTIGATE THE CLUE",
-        z: -56,
-      },
-      {
-        text: "FIND ANOTHER WAY THROUGH",
-        z: -75,
-      },
-      {
-        text: "REACH THE EVACUATION CENTER",
-        z: evacZ,
-      },
-    ];
-
-    const updateMission = (
-      px,
-      pz
-    ) => {
-      const stage =
-        stageData[
-          missionStage
-        ];
-
-      if (!stage) return;
-
-      const dx =
-        stage.z - pz;
-
-      const d = Math.max(
-        0,
-        Math.round(
-          Math.abs(dx)
-        )
-      );
-
-      setDistance(d);
-
-      /*
-        Stage progression.
-      */
+      const keys =
+        keysRef.current;
 
       if (
-        missionStage === 0 &&
-        pz < -29
+        keys.KeyA ||
+        keys.ArrowLeft
       ) {
-        missionStage = 1;
-        setObjective(
-          stageData[1].text
-        );
+        x -= 1;
       }
 
-      else if (
-        missionStage === 1 &&
-        pz < -47
+      if (
+        keys.KeyD ||
+        keys.ArrowRight
       ) {
-        missionStage = 2;
-        setObjective(
-          stageData[2].text
-        );
+        x += 1;
       }
 
-      else if (
-        missionStage === 2 &&
-        Math.abs(px + 5) < 3 &&
-        Math.abs(pz + 56) < 3
+      if (
+        keys.KeyW ||
+        keys.ArrowUp
       ) {
-        missionStage = 3;
-        setObjective(
-          stageData[3].text
-        );
-
-        setInteractText(
-          "INVESTIGATE"
-        );
-
-        setCanInteract(true);
+        y += 1;
       }
 
-      else if (
-        missionStage === 3 &&
-        pz < -74
+      if (
+        keys.KeyS ||
+        keys.ArrowDown
       ) {
-        missionStage = 4;
-        setObjective(
-          stageData[4].text
-        );
-
-        setCanInteract(false);
-        setInteractText("");
+        y -= 1;
       }
 
-      else if (
-        missionStage === 4 &&
-        Math.abs(pz - evacZ) < 5 &&
-        Math.abs(px) < 5
-      ) {
-        setDistance(3);
-        setCanInteract(true);
-        setInteractText(
-          "INTERACT"
+      /*
+        Mobile joystick.
+
+        Dead zone:
+        tiny accidental movements
+        do not move the player.
+
+        Curve:
+        low joystick movement =
+        slow movement.
+
+        This is the important part
+        that fixes the "sobrang bilis"
+        problem.
+      */
+
+      const joy =
+        joystickRef.current;
+
+      const magnitude =
+        Math.sqrt(
+          joy.x * joy.x +
+            joy.y * joy.y
         );
+
+      if (
+        magnitude > 0.12
+      ) {
+        const deadZone =
+          0.12;
+
+        const normalized =
+          Math.min(
+            1,
+            (magnitude -
+              deadZone) /
+              (1 -
+                deadZone)
+          );
+
+        const curved =
+          normalized *
+          normalized *
+          (3 -
+            2 *
+              normalized);
+
+        x +=
+          (joy.x /
+            magnitude) *
+          curved;
+
+        y +=
+          (-joy.y /
+            magnitude) *
+          curved;
       }
+
+      const length =
+        Math.sqrt(
+          x * x +
+            y * y
+        );
+
+      if (length > 1) {
+        x /= length;
+        y /= length;
+      }
+
+      return {
+        x,
+        y,
+        active:
+          Math.abs(x) >
+            0.015 ||
+          Math.abs(y) >
+            0.015,
+      };
     };
 
-    /* =======================================================
+    /* ======================================================
+       MISSION UPDATE
+    ====================================================== */
+
+    let currentStage = 0;
+    let lastDistance = -1;
+
+    const updateMission =
+      (playerPosition) => {
+        const current =
+          stages[currentStage];
+
+        if (!current) return;
+
+        const dx =
+          current.position.x -
+          playerPosition.x;
+
+        const dz =
+          current.position.z -
+          playerPosition.z;
+
+        const meters =
+          Math.max(
+            0,
+            Math.round(
+              Math.sqrt(
+                dx * dx +
+                  dz * dz
+              )
+            )
+          );
+
+        if (
+          meters !==
+          lastDistance
+        ) {
+          lastDistance =
+            meters;
+
+          setDistance(
+            meters
+          );
+        }
+
+        /*
+          FLOOD
+        */
+
+        if (
+          currentStage === 0 &&
+          meters <= 6
+        ) {
+          currentStage = 1;
+
+          setStage(1);
+
+          setObjective(
+            stages[1].name
+          );
+
+          lastDistance = -1;
+        }
+
+        /*
+          SURVIVOR
+        */
+
+        if (
+          currentStage === 1 &&
+          Math.abs(
+            playerPosition.x -
+              ROUTE.survivor.x
+          ) < 3 &&
+          Math.abs(
+            playerPosition.z -
+              ROUTE.survivor.z
+          ) < 3
+        ) {
+          setCanInteract(true);
+          setInteractLabel(
+            "TALK"
+          );
+        } else if (
+          currentStage === 1
+        ) {
+          setCanInteract(false);
+          setInteractLabel(
+            "APPROACH"
+          );
+        }
+
+        /*
+          CLUE
+        */
+
+        if (
+          currentStage === 2 &&
+          Math.abs(
+            playerPosition.x -
+              ROUTE.clue.x
+          ) < 3 &&
+          Math.abs(
+            playerPosition.z -
+              ROUTE.clue.z
+          ) < 3
+        ) {
+          setCanInteract(true);
+          setInteractLabel(
+            "INVESTIGATE"
+          );
+        } else if (
+          currentStage === 2
+        ) {
+          setCanInteract(false);
+          setInteractLabel(
+            "APPROACH"
+          );
+        }
+
+        /*
+          SIDE STREET
+        */
+
+        if (
+          currentStage === 3 &&
+          playerPosition.z <
+            -72
+        ) {
+          currentStage = 4;
+
+          setStage(4);
+
+          setObjective(
+            stages[4].name
+          );
+
+          lastDistance = -1;
+        }
+
+        /*
+          SUPPLIES
+        */
+
+        if (
+          currentStage === 4 &&
+          Math.abs(
+            playerPosition.x -
+              ROUTE.supplies.x
+          ) < 3 &&
+          Math.abs(
+            playerPosition.z -
+              ROUTE.supplies.z
+          ) < 3
+        ) {
+          setCanInteract(true);
+          setInteractLabel(
+            "COLLECT"
+          );
+        } else if (
+          currentStage === 4
+        ) {
+          setCanInteract(false);
+          setInteractLabel(
+            "APPROACH"
+          );
+        }
+
+        /*
+          EVACUATION
+        */
+
+        if (
+          currentStage === 5 &&
+          Math.abs(
+            playerPosition.x -
+              ROUTE.evacuation.x
+          ) < 5 &&
+          Math.abs(
+            playerPosition.z -
+              ROUTE.evacuation.z
+          ) < 7
+        ) {
+          setCanInteract(true);
+          setInteractLabel(
+            "INTERACT"
+          );
+        } else if (
+          currentStage === 5
+        ) {
+          setCanInteract(false);
+          setInteractLabel(
+            "APPROACH"
+          );
+        }
+
+        /*
+          Move from clue to
+          alternate route after
+          interaction.
+        */
+
+        if (
+          currentStage === 2 &&
+          playerPosition.z <
+            -57
+        ) {
+          currentStage = 3;
+
+          setStage(3);
+
+          setObjective(
+            stages[3].name
+          );
+
+          setCanInteract(false);
+
+          lastDistance = -1;
+        }
+      };
+
+    /* ======================================================
        INTERACTION
-    ======================================================= */
+    ====================================================== */
 
-    const interactHandler = () => {
-      const p =
-        playerRef.current;
+    const interact =
+      () => {
+        const p =
+          playerRef.current
+            .position;
 
-      /*
-        clue
-      */
+        /*
+          SURVIVOR
+        */
 
-      if (
-        missionStage === 2 &&
-        Math.abs(p.x + 5) < 3 &&
-        Math.abs(p.z + 56) < 3
-      ) {
-        setDialogue({
-          type: "clue",
-          title:
-            "A FLOOD REPORT",
-          text:
-            "You found a damaged report. It indicates that residents were moved toward the evacuation center.",
-        });
+        if (
+          currentStage === 1 &&
+          Math.abs(
+            p.x -
+              ROUTE.survivor.x
+          ) < 3 &&
+          Math.abs(
+            p.z -
+              ROUTE.survivor.z
+          ) < 3
+        ) {
+          setDialogue({
+            type: "survivor",
+            title:
+              "SURVIVOR",
+            text:
+              "Tulungan mo kami. Maraming residente ang naiwan dahil mabilis na tumaas ang tubig.",
+          });
 
-        return;
-      }
+          return;
+        }
 
-      /*
-        evacuation
-      */
+        /*
+          CLUE
+        */
 
-      if (
-        missionStage === 4 &&
-        Math.abs(p.x) < 5 &&
-        Math.abs(p.z - evacZ) < 5
-      ) {
-        setDialogue({
-          type: "evacuation",
-          title:
-            "EVACUATION CENTER",
-          text:
-            "The evacuation center is finally within reach. People inside are waiting for help.",
-        });
-      }
-    };
+        if (
+          currentStage === 2 &&
+          Math.abs(
+            p.x -
+              ROUTE.clue.x
+          ) < 3 &&
+          Math.abs(
+            p.z -
+              ROUTE.clue.z
+          ) < 3
+        ) {
+          setDialogue({
+            type: "clue",
+            title:
+              "DAMAGED REPORT",
+            text:
+              "May report tungkol sa paglikas ng mga residente. Ang evacuation center ay nasa kabilang bahagi ng district.",
+          });
+
+          return;
+        }
+
+        /*
+          SUPPLIES
+        */
+
+        if (
+          currentStage === 4 &&
+          Math.abs(
+            p.x -
+              ROUTE.supplies.x
+          ) < 3 &&
+          Math.abs(
+            p.z -
+              ROUTE.supplies.z
+          ) < 3
+        ) {
+          setDialogue({
+            type: "supplies",
+            title:
+              "RELIEF SUPPLIES",
+            text:
+              "Nakuha mo ang mga relief supplies. Dalhin ang mga ito sa evacuation center.",
+          });
+
+          return;
+        }
+
+        /*
+          EVAC CENTER
+        */
+
+        if (
+          currentStage === 5 &&
+          Math.abs(
+            p.x -
+              ROUTE.evacuation.x
+          ) < 5 &&
+          Math.abs(
+            p.z -
+              ROUTE.evacuation.z
+          ) < 7
+        ) {
+          setDialogue({
+            type: "complete",
+            title:
+              "EVACUATION CENTER",
+            text:
+              "Nakarating ka sa evacuation center. Handa na ang mga residente para sa susunod na hakbang.",
+          });
+        }
+      };
 
     window.addEventListener(
       "tatsulok-interact",
-      interactHandler
+      interact
     );
 
-    /* =======================================================
-       ANIMATION
-    ======================================================= */
+    /* ======================================================
+       GAME LOOP
+    ====================================================== */
 
     const clock =
-      new THREE.Clock();
+      clockRef.current;
 
     const animate = () => {
-      animationRef.current =
+      frameRef.current =
         requestAnimationFrame(
           animate
         );
@@ -1326,162 +1965,245 @@ export default function District3D({
       const delta =
         Math.min(
           clock.getDelta(),
-          0.05
+          0.033
         );
 
       const p =
         playerRef.current;
 
-      const keys =
-        keysRef.current;
+      const input =
+        getInput();
 
-      const joystick =
-        joystickRef.current;
+      /*
+        Movement speeds are deliberately
+        controlled for mobile.
+      */
 
-      let forward = 0;
-      let side = 0;
+      const walkSpeed =
+        4.0;
 
-      if (
-        keys.KeyW ||
-        keys.ArrowUp
-      ) {
-        forward += 1;
-      }
+      const runSpeed =
+        6.4;
 
-      if (
-        keys.KeyS ||
-        keys.ArrowDown
-      ) {
-        forward -= 1;
-      }
+      const targetSpeed =
+        p.running
+          ? runSpeed
+          : walkSpeed;
 
-      if (
-        keys.KeyA ||
-        keys.ArrowLeft
-      ) {
-        side -= 1;
-      }
-
-      if (
-        keys.KeyD ||
-        keys.ArrowRight
-      ) {
-        side += 1;
-      }
-
-      forward +=
-        -joystick.y;
-
-      side +=
-        joystick.x;
-
-      const length =
-        Math.sqrt(
-          forward *
-            forward +
-            side * side
+      const targetVelocity =
+        new THREE.Vector3(
+          input.x *
+            targetSpeed,
+          0,
+          input.y *
+            targetSpeed
         );
 
-      if (length > 1) {
-        forward /= length;
-        side /= length;
-      }
-
-      const isMoving =
-        Math.abs(forward) >
-          0.05 ||
-        Math.abs(side) >
-          0.05;
-
-      const speed =
-        p.running
-          ? 8
-          : 4.8;
-
       /*
-        Character movement.
+        Smooth acceleration.
       */
 
-      const angle =
-        p.cameraYaw;
-
-      const dx =
-        (
-          side *
-            Math.cos(angle) -
-          forward *
-            Math.sin(angle)
-        ) *
-        speed *
-        delta;
-
-      const dz =
-        (
-          side *
-            Math.sin(angle) +
-          forward *
-            Math.cos(angle)
-        ) *
-        speed *
-        delta;
-
-      const nx =
-        p.x + dx;
-
-      const nz =
-        p.z + dz;
-
-      if (!blocked(nx, p.z)) {
-        p.x = nx;
-      }
-
-      if (!blocked(p.x, nz)) {
-        p.z = nz;
-      }
-
-      /*
-        Rotate character in direction of movement.
-      */
-
-      if (isMoving) {
-        p.yaw =
-          Math.atan2(
-            dx,
-            dz
-          );
-
-        player.rotation.y =
-          p.yaw;
-
-        /*
-          Simple walking animation.
-        */
-
-        const walk =
-          Math.sin(
-            performance.now() *
-              0.012
-          ) * 0.12;
-
-        leg1.rotation.x =
-          walk;
-
-        leg2.rotation.x =
-          -walk;
-      }
-
-      player.position.set(
-        p.x,
-        0,
-        p.z
+      p.velocity.lerp(
+        targetVelocity,
+        1 -
+          Math.pow(
+            0.001,
+            delta
+          )
       );
 
       /*
-        Third-person camera.
+        Stop cleanly.
       */
 
+      if (!input.active) {
+        p.velocity.multiplyScalar(
+          Math.pow(
+            0.001,
+            delta
+          )
+        );
+      }
+
+      /*
+        Camera-relative movement.
+      */
+
+      const forward =
+        new THREE.Vector3(
+          -Math.sin(
+            p.cameraYaw
+          ),
+          0,
+          -Math.cos(
+            p.cameraYaw
+          )
+        );
+
+      const right =
+        new THREE.Vector3(
+          Math.cos(
+            p.cameraYaw
+          ),
+          0,
+          -Math.sin(
+            p.cameraYaw
+          )
+        );
+
+      const movement =
+        new THREE.Vector3();
+
+      movement.addScaledVector(
+        right,
+        input.x
+      );
+
+      movement.addScaledVector(
+        forward,
+        input.y
+      );
+
+      if (
+        movement.lengthSq() >
+        0.0001
+      ) {
+        movement.normalize();
+
+        const velocity =
+          movement.multiplyScalar(
+            targetSpeed
+          );
+
+        p.velocity.lerp(
+          velocity,
+          1 -
+            Math.pow(
+              0.0001,
+              delta
+            )
+        );
+      }
+
+      const nextX =
+        p.position.x +
+        p.velocity.x *
+          delta;
+
+      const nextZ =
+        p.position.z +
+        p.velocity.z *
+          delta;
+
+      /*
+        Axis-separated collision.
+        This prevents the player from
+        getting stuck against corners.
+      */
+
+      if (
+        !isBlocked(
+          nextX,
+          p.position.z
+        )
+      ) {
+        p.position.x =
+          nextX;
+      } else {
+        p.velocity.x = 0;
+      }
+
+      if (
+        !isBlocked(
+          p.position.x,
+          nextZ
+        )
+      ) {
+        p.position.z =
+          nextZ;
+      } else {
+        p.velocity.z = 0;
+      }
+
+      /*
+        Character position.
+      */
+
+      if (
+        playerGroupRef.current
+      ) {
+        playerGroupRef.current.position.copy(
+          p.position
+        );
+
+        /*
+          Character faces direction
+          of movement.
+        */
+
+        if (
+          p.velocity.lengthSq() >
+          0.08
+        ) {
+          const targetYaw =
+            Math.atan2(
+              p.velocity.x,
+              p.velocity.z
+            );
+
+          let diff =
+            targetYaw -
+            playerGroupRef.current
+              .rotation.y;
+
+          diff =
+            Math.atan2(
+              Math.sin(diff),
+              Math.cos(diff)
+            );
+
+          playerGroupRef.current.rotation.y +=
+            diff *
+            Math.min(
+              1,
+              delta * 10
+            );
+        }
+
+        /*
+          Simple walking animation
+          for fallback character.
+        */
+
+        const walkTime =
+          performance.now() *
+          (p.running
+            ? 0.018
+            : 0.013);
+
+        playerGroupRef.current
+          .children.forEach(
+            (child, index) => {
+              if (
+                child.isMesh &&
+                child.position.y <
+                  0.9
+              ) {
+                child.rotation.x =
+                  Math.sin(
+                    walkTime
+                  ) * 0.15;
+              }
+            }
+          );
+      }
+
+      /* ====================================================
+         THIRD-PERSON CAMERA
+      ==================================================== */
+
       const cameraDistance =
-        7.5;
+        7.2;
 
       const horizontal =
         Math.cos(
@@ -1489,75 +2211,188 @@ export default function District3D({
         ) *
         cameraDistance;
 
-      const cameraX =
-        p.x +
-        Math.sin(
-          p.cameraYaw
-        ) *
-        horizontal;
+      const desiredCamera =
+        new THREE.Vector3(
+          p.position.x +
+            Math.sin(
+              p.cameraYaw
+            ) *
+              horizontal,
 
-      const cameraZ =
-        p.z +
-        Math.cos(
-          p.cameraYaw
-        ) *
-        horizontal;
+          p.position.y +
+            2.8 +
+            Math.sin(
+              p.cameraPitch
+            ) *
+              cameraDistance,
 
-      const cameraY =
-        2.4 +
-        Math.sin(
-          p.cameraPitch
-        ) *
-        cameraDistance;
+          p.position.z +
+            Math.cos(
+              p.cameraYaw
+            ) *
+              horizontal
+        );
+
+      /*
+        Camera collision:
+        prevents camera from going
+        inside buildings.
+      */
+
+      const rayOrigin =
+        p.position.clone();
+
+      rayOrigin.y +=
+        2.0;
+
+      const rayDirection =
+        desiredCamera
+          .clone()
+          .sub(rayOrigin)
+          .normalize();
+
+      const raycaster =
+        new THREE.Raycaster(
+          rayOrigin,
+          rayDirection,
+          0.1,
+          cameraDistance
+        );
+
+      const objects =
+        scene.children.filter(
+          (obj) =>
+            obj !==
+              playerGroupRef.current &&
+            obj.visible
+        );
+
+      const hits =
+        raycaster.intersectObjects(
+          objects,
+          true
+        );
+
+      let finalCamera =
+        desiredCamera;
+
+      if (
+        hits.length > 0 &&
+        hits[0].distance <
+          cameraDistance
+      ) {
+        finalCamera =
+          rayOrigin
+            .clone()
+            .add(
+              rayDirection.multiplyScalar(
+                Math.max(
+                  1.8,
+                  hits[0]
+                    .distance -
+                    0.35
+                )
+              )
+            );
+      }
 
       camera.position.lerp(
-        new THREE.Vector3(
-          cameraX,
-          cameraY,
-          cameraZ
-        ),
-        0.12
+        finalCamera,
+        1 -
+          Math.pow(
+            0.0001,
+            delta
+          )
       );
+
+      const lookTarget =
+        p.position.clone();
+
+      lookTarget.y +=
+        1.45;
 
       camera.lookAt(
-        p.x,
-        1.3,
-        p.z
+        lookTarget
       );
 
-      /*
-        Mission.
-      */
+      /* ====================================================
+         OBJECTIVE MARKER
+      ==================================================== */
+
+      const current =
+        stages[currentStage];
+
+      if (
+        current &&
+        worldRef.current
+          .objectiveMarker
+      ) {
+        const marker =
+          worldRef.current
+            .objectiveMarker;
+
+        marker.position.copy(
+          current.position
+        );
+
+        marker.position.y =
+          0;
+
+        marker.children[0]
+          .rotation.y +=
+          delta * 2.2;
+
+        marker.children[0]
+          .position.y =
+          5.6 +
+          Math.sin(
+            performance.now() *
+              0.003
+          ) *
+            0.35;
+      }
+
+      /* ====================================================
+         NPC ANIMATION
+      ==================================================== */
+
+      if (
+        worldRef.current
+          .survivor
+      ) {
+        worldRef.current
+          .survivor.rotation.y =
+          Math.sin(
+            performance.now() *
+              0.0008
+          ) * 0.12;
+      }
+
+      /* ====================================================
+         CLUE ANIMATION
+      ==================================================== */
+
+      if (
+        worldRef.current.clue
+      ) {
+        worldRef.current.clue.rotation.y +=
+          delta * 1.3;
+
+        worldRef.current.clue.position.y =
+          Math.sin(
+            performance.now() *
+              0.002
+          ) *
+          0.12;
+      }
+
+      /* ====================================================
+         MISSION
+      ==================================================== */
 
       updateMission(
-        p.x,
-        p.z
+        p.position
       );
-
-      /*
-        Objective beacon.
-      */
-
-      diamond.rotation.y +=
-        delta * 2.2;
-
-      diamond.position.y =
-        Math.sin(
-          performance.now() *
-            0.002
-        ) *
-        0.35;
-
-      /*
-        NPC idle animation.
-      */
-
-      npc.rotation.y =
-        Math.sin(
-          performance.now() *
-            0.001
-        ) *
-        0.15;
 
       renderer.render(
         scene,
@@ -1567,9 +2402,9 @@ export default function District3D({
 
     animate();
 
-    /* =======================================================
+    /* ======================================================
        RESIZE
-    ======================================================= */
+    ====================================================== */
 
     const resize = () => {
       const width =
@@ -1595,13 +2430,13 @@ export default function District3D({
       resize
     );
 
-    /* =======================================================
+    /* ======================================================
        CLEANUP
-    ======================================================= */
+    ====================================================== */
 
     return () => {
       cancelAnimationFrame(
-        animationRef.current
+        frameRef.current
       );
 
       window.removeEventListener(
@@ -1611,14 +2446,13 @@ export default function District3D({
 
       window.removeEventListener(
         "tatsulok-interact",
-        interactHandler
+        interact
       );
 
       renderer.dispose();
 
       if (
-        renderer.domElement
-          .parentNode
+        renderer.domElement.parentNode
       ) {
         renderer.domElement.parentNode.removeChild(
           renderer.domElement
@@ -1632,21 +2466,100 @@ export default function District3D({
           ) {
             object.geometry.dispose();
           }
+
+          if (
+            object.material
+          ) {
+            if (
+              Array.isArray(
+                object.material
+              )
+            ) {
+              object.material.forEach(
+                (m) =>
+                  m.dispose()
+              );
+            } else {
+              object.material.dispose();
+            }
+          }
         }
       );
     };
   }, [activeCharacter]);
 
-  /* =========================================================
+  /* ========================================================
      MOBILE JOYSTICK
-  ========================================================= */
+  ======================================================== */
 
-  const joystickMove = (
+  const joystickPointerDown = (
     event
   ) => {
-    const element =
+    event.preventDefault();
+    event.stopPropagation();
+
+    const joystick =
       event.currentTarget;
 
+    joystickRef.current.active =
+      true;
+
+    joystickRef.current.pointerId =
+      event.pointerId;
+
+    joystick.setPointerCapture(
+      event.pointerId
+    );
+
+    updateJoystick(
+      event,
+      joystick
+    );
+  };
+
+  const joystickPointerMove = (
+    event
+  ) => {
+    if (
+      !joystickRef.current.active ||
+      joystickRef.current.pointerId !==
+        event.pointerId
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    updateJoystick(
+      event,
+      event.currentTarget
+    );
+  };
+
+  const joystickPointerUp = (
+    event
+  ) => {
+    if (
+      joystickRef.current.pointerId !==
+      event.pointerId
+    ) {
+      return;
+    }
+
+    joystickRef.current.active =
+      false;
+
+    joystickRef.current.pointerId =
+      null;
+
+    joystickRef.current.x = 0;
+    joystickRef.current.y = 0;
+  };
+
+  const updateJoystick = (
+    event,
+    element
+  ) => {
     const rect =
       element.getBoundingClientRect();
 
@@ -1658,6 +2571,11 @@ export default function District3D({
       rect.top +
       rect.height / 2;
 
+    /*
+      Use actual touch position
+      relative to joystick center.
+    */
+
     let x =
       (event.clientX -
         centerX) /
@@ -1668,51 +2586,48 @@ export default function District3D({
         centerY) /
       (rect.height / 2);
 
-    const magnitude =
+    const length =
       Math.sqrt(
         x * x +
           y * y
       );
 
-    if (magnitude > 1) {
-      x /= magnitude;
-      y /= magnitude;
+    if (length > 1) {
+      x /= length;
+      y /= length;
     }
 
+    /*
+      Slight response reduction
+      prevents hyper-sensitive movement.
+    */
+
+    const sensitivity =
+      0.82;
+
     joystickRef.current.x =
-      x;
+      x * sensitivity;
 
     joystickRef.current.y =
-      y;
+      y * sensitivity;
   };
 
-  const joystickStart = (
-    e
+  /* ========================================================
+     CAMERA TOUCH
+  ======================================================== */
+
+  const lookPointerDown = (
+    event
   ) => {
-    e.preventDefault();
-
-    joystickRef.current.active =
-      true;
-
-    joystickMove(e);
-  };
-
-  const joystickStop = () => {
-    joystickRef.current.active =
-      false;
-
-    joystickRef.current.x = 0;
-    joystickRef.current.y = 0;
-  };
-
-  /* =========================================================
-     TOUCH CAMERA
-  ========================================================= */
-
-  const lookStart = (e) => {
     if (
-      e.target.closest(
-        ".touch-ui"
+      event.target.closest(
+        ".td-controls"
+      ) ||
+      event.target.closest(
+        ".td-back"
+      ) ||
+      event.target.closest(
+        ".td-dialogue"
       )
     ) {
       return;
@@ -1721,60 +2636,86 @@ export default function District3D({
     lookRef.current.active =
       true;
 
+    lookRef.current.pointerId =
+      event.pointerId;
+
     lookRef.current.x =
-      e.clientX;
+      event.clientX;
 
     lookRef.current.y =
-      e.clientY;
+      event.clientY;
   };
 
-  const lookMove = (e) => {
+  const lookPointerMove = (
+    event
+  ) => {
     if (
-      !lookRef.current.active
+      !lookRef.current.active ||
+      lookRef.current.pointerId !==
+        event.pointerId
     ) {
       return;
     }
 
     const dx =
-      e.clientX -
+      event.clientX -
       lookRef.current.x;
 
     const dy =
-      e.clientY -
+      event.clientY -
       lookRef.current.y;
 
     lookRef.current.x =
-      e.clientX;
+      event.clientX;
 
     lookRef.current.y =
-      e.clientY;
+      event.clientY;
 
     const p =
       playerRef.current;
 
+    /*
+      Controlled camera sensitivity.
+    */
+
     p.cameraYaw -=
-      dx * 0.006;
+      dx * 0.0038;
 
     p.cameraPitch =
       THREE.MathUtils.clamp(
         p.cameraPitch +
-          dy * 0.003,
-        0.15,
-        0.85
+          dy * 0.0022,
+        0.18,
+        0.72
       );
   };
 
-  const lookStop = () => {
+  const lookPointerUp = (
+    event
+  ) => {
+    if (
+      lookRef.current.pointerId !==
+      event.pointerId
+    ) {
+      return;
+    }
+
     lookRef.current.active =
       false;
+
+    lookRef.current.pointerId =
+      null;
   };
 
-  /* =========================================================
+  /* ========================================================
      RUN
-  ========================================================= */
+  ======================================================== */
 
-  const runStart = (e) => {
-    e.preventDefault();
+  const startRun = (
+    event
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
 
     playerRef.current.running =
       true;
@@ -1782,8 +2723,11 @@ export default function District3D({
     setRunning(true);
   };
 
-  const runStop = (e) => {
-    e.preventDefault();
+  const stopRun = (
+    event
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
 
     playerRef.current.running =
       false;
@@ -1791,45 +2735,69 @@ export default function District3D({
     setRunning(false);
   };
 
-  /* =========================================================
-     INTERACT
-  ========================================================= */
-
-  const interact = () => {
-    if (!canInteract) {
-      return;
-    }
-
-    window.dispatchEvent(
-      new CustomEvent(
-        "tatsulok-interact"
-      )
-    );
-  };
-
-  /* =========================================================
-     DIALOGUE CONTINUE
-  ========================================================= */
+  /* ========================================================
+     DIALOGUE
+  ======================================================== */
 
   const continueDialogue = () => {
     if (!dialogue) return;
 
     if (
       dialogue.type ===
-      "clue"
+      "survivor"
     ) {
       setDialogue(null);
+
+      setStage(2);
+
+      setObjective(
+        stages[2].name
+      );
+
       setCanInteract(false);
-      setInteractText("");
+
       return;
     }
 
     if (
       dialogue.type ===
-      "evacuation"
+      "clue"
     ) {
       setDialogue(null);
-      setCompleted(true);
+
+      setStage(3);
+
+      setObjective(
+        stages[3].name
+      );
+
+      setCanInteract(false);
+
+      return;
+    }
+
+    if (
+      dialogue.type ===
+      "supplies"
+    ) {
+      setDialogue(null);
+
+      setStage(5);
+
+      setObjective(
+        stages[5].name
+      );
+
+      setCanInteract(false);
+
+      return;
+    }
+
+    if (
+      dialogue.type ===
+      "complete"
+    ) {
+      setDialogue(null);
 
       if (onComplete) {
         onComplete({
@@ -1843,30 +2811,38 @@ export default function District3D({
     }
   };
 
-  /* =========================================================
-     RENDER
-  ========================================================= */
+  /* ========================================================
+     JSX
+  ======================================================== */
 
   return (
     <div
-      className="tatsulok-district"
       ref={mountRef}
-      onPointerDown={lookStart}
-      onPointerMove={lookMove}
-      onPointerUp={lookStop}
-      onPointerCancel={lookStop}
+      className="tatsulok-district"
+      onPointerDown={
+        lookPointerDown
+      }
+      onPointerMove={
+        lookPointerMove
+      }
+      onPointerUp={
+        lookPointerUp
+      }
+      onPointerCancel={
+        lookPointerUp
+      }
     >
       <style>{`
         .tatsulok-district {
           position: fixed;
           inset: 0;
           overflow: hidden;
-          background: #8ed8ff;
+          background: #182a35;
+          color: white;
           font-family:
             Arial,
             Helvetica,
             sans-serif;
-          color: white;
           touch-action: none;
           user-select: none;
           -webkit-user-select: none;
@@ -1880,9 +2856,9 @@ export default function District3D({
           display: block;
         }
 
-        /* ==================================================
+        /* ================================
            HUD
-        ================================================== */
+        ================================= */
 
         .td-hud {
           position: absolute;
@@ -1898,75 +2874,73 @@ export default function District3D({
           transform: translateX(-50%);
           text-align: center;
           text-shadow:
-            0 3px 8px rgba(0,0,0,.65);
+            0 3px 8px rgba(0,0,0,.8);
         }
 
         .td-mission-number {
-          font-size: 12px;
+          color: #ffd43b;
+          font-size: 11px;
           font-weight: 900;
           letter-spacing: 4px;
-          color: #ffd447;
         }
 
         .td-title {
-          margin-top: 2px;
-          font-size: clamp(25px, 4vw, 48px);
+          margin-top: 3px;
+          font-size: clamp(25px,4vw,47px);
           font-weight: 950;
           line-height: 1;
+          white-space: nowrap;
         }
 
         .td-district {
-          margin-top: 5px;
-          font-size: 13px;
-          letter-spacing: 4px;
-          font-weight: 800;
+          margin-top: 7px;
           opacity: .8;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 4px;
         }
-
-        /* BACK */
 
         .td-back {
           position: absolute;
-          top: 25px;
-          left: 25px;
+          top: 22px;
+          left: 22px;
+          width: 125px;
+          height: 50px;
           pointer-events: auto;
-          width: 135px;
-          height: 52px;
-          border: 1px solid rgba(255,255,255,.55);
-          background: rgba(0,0,0,.48);
-          color: white;
-          font-weight: 950;
-          font-size: 15px;
           cursor: pointer;
-          backdrop-filter: blur(5px);
+          color: white;
+          background: rgba(0,0,0,.58);
+          border: 1px solid rgba(255,255,255,.4);
+          font-size: 14px;
+          font-weight: 900;
+          backdrop-filter: blur(6px);
         }
-
-        /* OBJECTIVE */
 
         .td-objective {
           position: absolute;
-          top: 25px;
-          right: 25px;
-          width: 190px;
-          min-height: 82px;
-          padding: 13px;
+          top: 22px;
+          right: 22px;
+          width: 205px;
+          min-height: 86px;
+          padding: 12px 14px;
           box-sizing: border-box;
           text-align: center;
-          background: rgba(0,0,0,.48);
-          border: 1px solid rgba(255,213,72,.65);
-          backdrop-filter: blur(5px);
+          background: rgba(0,0,0,.58);
+          border: 1px solid rgba(255,212,59,.7);
+          backdrop-filter: blur(6px);
         }
 
         .td-objective-label {
-          color: #ffd447;
-          font-size: 10px;
+          color: #ffd43b;
+          font-size: 9px;
+          font-weight: 900;
           letter-spacing: 3px;
-          font-weight: 950;
         }
 
-        .td-objective-text {
-          margin-top: 4px;
-          font-size: 12px;
+        .td-objective-name {
+          margin-top: 5px;
+          font-size: 11px;
+          line-height: 1.25;
           font-weight: 900;
         }
 
@@ -1976,74 +2950,70 @@ export default function District3D({
           font-weight: 950;
         }
 
-        /* PLAYER */
+        /* ================================
+           WORLD MARKER HUD
+        ================================= */
 
-        .td-player {
-          position: absolute;
-          left: 25px;
-          bottom: 25px;
-          padding: 9px 13px;
-          background: rgba(0,0,0,.48);
-          border: 1px solid rgba(255,255,255,.18);
-          font-size: 12px;
-          font-weight: 900;
-        }
-
-        /* CENTER OBJECTIVE */
-
-        .td-center-objective {
+        .td-world-info {
           position: absolute;
           left: 50%;
-          bottom: 125px;
+          bottom: 108px;
           transform: translateX(-50%);
+          padding: 9px 18px;
+          min-width: 190px;
           text-align: center;
-          padding: 12px 22px;
-          background: rgba(0,0,0,.5);
-          border: 1px solid rgba(255,213,72,.55);
-          text-shadow:
-            0 2px 5px black;
+          background: rgba(0,0,0,.54);
+          border: 1px solid rgba(255,212,59,.55);
+          pointer-events: none;
+          text-shadow: 0 2px 5px black;
         }
 
-        .td-marker {
-          width: 20px;
-          height: 20px;
-          margin: 0 auto 10px;
-          background: #ffd447;
+        .td-world-marker {
+          width: 17px;
+          height: 17px;
+          margin: 0 auto 8px;
           transform: rotate(45deg);
+          background: #ffd43b;
           box-shadow:
-            0 0 20px rgba(255,212,71,.9);
+            0 0 18px rgba(255,212,59,.8);
         }
 
-        .td-center-text {
-          font-size: 15px;
+        .td-world-name {
+          font-size: 12px;
           font-weight: 950;
         }
 
-        /* ==================================================
+        /* ================================
            CONTROLS
-        ================================================== */
+        ================================= */
 
-        .touch-ui {
+        .td-controls {
           position: absolute;
+          inset: 0;
           z-index: 50;
-          pointer-events: auto;
+          pointer-events: none;
         }
 
         .td-joystick {
-          left: 25px;
-          bottom: 30px;
-          width: 145px;
-          height: 145px;
+          position: absolute;
+          left: 24px;
+          bottom: 25px;
+          width: 142px;
+          height: 142px;
           border-radius: 50%;
-          background: rgba(0,0,0,.27);
-          border: 1px solid rgba(255,255,255,.3);
+          pointer-events: auto;
+          background: rgba(0,0,0,.25);
+          border: 1px solid rgba(255,255,255,.28);
+          box-shadow:
+            inset 0 0 30px rgba(0,0,0,.2);
         }
 
-        .td-joystick-ring {
+        .td-joystick-inner {
           position: absolute;
-          inset: 20px;
+          inset: 17px;
           border-radius: 50%;
-          border: 1px solid rgba(255,255,255,.16);
+          border: 1px solid rgba(255,255,255,.15);
+          pointer-events: none;
         }
 
         .td-knob {
@@ -2054,111 +3024,96 @@ export default function District3D({
           height: 55px;
           transform: translate(-50%,-50%);
           border-radius: 50%;
-          background: rgba(255,255,255,.2);
-          border: 1px solid rgba(255,255,255,.45);
+          background: rgba(210,220,225,.32);
+          border: 1px solid rgba(255,255,255,.5);
+          box-shadow:
+            0 5px 15px rgba(0,0,0,.3);
           pointer-events: none;
         }
 
-        .td-arrow {
+        .td-joystick-label {
           position: absolute;
-          color: rgba(255,255,255,.4);
-          font-size: 11px;
+          left: 50%;
+          bottom: -21px;
+          transform: translateX(-50%);
+          font-size: 9px;
           font-weight: 900;
+          letter-spacing: 1px;
+          opacity: .55;
           pointer-events: none;
         }
-
-        .td-up {
-          top: 8px;
-          left: 50%;
-          transform: translateX(-50%);
-        }
-
-        .td-down {
-          bottom: 8px;
-          left: 50%;
-          transform: translateX(-50%);
-        }
-
-        .td-left {
-          left: 8px;
-          top: 50%;
-          transform: translateY(-50%);
-        }
-
-        .td-right {
-          right: 8px;
-          top: 50%;
-          transform: translateY(-50%);
-        }
-
-        /* RIGHT BUTTONS */
 
         .td-actions {
+          position: absolute;
           right: 25px;
-          bottom: 30px;
+          bottom: 25px;
           display: flex;
+          gap: 9px;
           align-items: flex-end;
-          gap: 12px;
+          pointer-events: auto;
         }
 
         .td-action {
-          min-width: 75px;
-          height: 58px;
-          border: 1px solid rgba(255,255,255,.35);
-          background: rgba(0,0,0,.48);
+          height: 57px;
+          min-width: 78px;
+          padding: 0 14px;
           color: white;
+          background: rgba(0,0,0,.58);
+          border: 1px solid rgba(255,255,255,.35);
+          font-size: 10px;
           font-weight: 950;
-          font-size: 11px;
           cursor: pointer;
           touch-action: manipulation;
         }
 
         .td-run {
-          border-color: #ffd447;
+          border-color: #ffd43b;
         }
 
         .td-interact {
-          min-width: 135px;
-          color: #ffd447;
-          border-color: #ffd447;
-          opacity: .45;
+          min-width: 130px;
+          color: #ffd43b;
+          border-color: #ffd43b;
+          opacity: .5;
         }
 
         .td-interact.ready {
           opacity: 1;
-          background: rgba(74,52,0,.78);
+          background: rgba(62,48,5,.85);
           box-shadow:
-            0 0 25px rgba(255,212,71,.2);
+            0 0 20px rgba(255,212,59,.16);
         }
 
-        /* ==================================================
+        /* ================================
            DIALOGUE
-        ================================================== */
+        ================================= */
 
         .td-dialogue {
           position: absolute;
-          z-index: 100;
           inset: 0;
+          z-index: 100;
           display: flex;
-          justify-content: center;
           align-items: flex-end;
-          padding: 25px;
-          background: rgba(0,0,0,.48);
+          justify-content: center;
+          padding: 22px;
+          box-sizing: border-box;
+          background: rgba(0,0,0,.5);
           pointer-events: auto;
         }
 
         .td-dialogue-box {
-          width: min(850px, 94vw);
-          padding: 27px;
-          background: rgba(5,9,8,.97);
-          border: 1px solid #ffd447;
+          width: min(850px,94vw);
+          padding: 25px;
+          box-sizing: border-box;
+          background: rgba(5,8,9,.97);
+          border: 1px solid #ffd43b;
           box-shadow:
             0 20px 70px rgba(0,0,0,.7);
         }
 
         .td-dialogue-label {
-          color: #ffd447;
-          font-size: 11px;
+          color: #ffd43b;
+          font-size: 10px;
           font-weight: 950;
           letter-spacing: 4px;
         }
@@ -2171,107 +3126,105 @@ export default function District3D({
 
         .td-dialogue-text {
           margin-top: 12px;
-          color: #cbd1cc;
-          line-height: 1.55;
+          color: #cbd0cf;
           font-size: 15px;
+          line-height: 1.55;
         }
 
         .td-dialogue-button {
           width: 100%;
-          height: 55px;
-          margin-top: 22px;
-          background: #ffd447;
-          color: #111;
+          height: 54px;
+          margin-top: 20px;
           border: 0;
+          background: #ffd43b;
+          color: #111;
           font-weight: 950;
           cursor: pointer;
         }
 
-        /* ==================================================
+        /* ================================
            MOBILE
-        ================================================== */
+        ================================= */
 
         @media (max-width: 800px) {
-
           .td-top {
-            top: 12px;
+            top: 11px;
           }
 
           .td-mission-number {
-            font-size: 9px;
+            font-size: 8px;
           }
 
           .td-title {
-            font-size: 24px;
+            font-size: 22px;
           }
 
           .td-district {
-            font-size: 9px;
+            margin-top: 4px;
+            font-size: 8px;
             letter-spacing: 3px;
           }
 
           .td-back {
-            top: 13px;
-            left: 13px;
+            top: 12px;
+            left: 12px;
             width: 90px;
-            height: 43px;
-            font-size: 12px;
+            height: 42px;
+            font-size: 11px;
           }
 
           .td-objective {
-            top: 13px;
-            right: 13px;
-            width: 120px;
-            min-height: 67px;
+            top: 12px;
+            right: 12px;
+            width: 135px;
+            min-height: 70px;
             padding: 8px;
           }
 
           .td-objective-label {
+            font-size: 7px;
+          }
+
+          .td-objective-name {
             font-size: 8px;
           }
 
-          .td-objective-text {
-            font-size: 9px;
-          }
-
           .td-distance {
-            font-size: 22px;
+            font-size: 21px;
           }
 
-          .td-center-objective {
-            bottom: 155px;
-            padding: 9px 15px;
+          .td-world-info {
+            bottom: 145px;
+            min-width: 165px;
+            padding: 8px 13px;
           }
 
-          .td-center-text {
-            font-size: 12px;
+          .td-world-name {
+            font-size: 10px;
           }
 
           .td-joystick {
-            left: 15px;
-            bottom: 15px;
-            width: 125px;
-            height: 125px;
+            left: 14px;
+            bottom: 16px;
+            width: 128px;
+            height: 128px;
           }
 
           .td-actions {
-            right: 15px;
-            bottom: 15px;
+            right: 14px;
+            bottom: 16px;
             gap: 6px;
           }
 
           .td-action {
-            min-width: 58px;
             height: 50px;
-            font-size: 9px;
+            min-width: 62px;
+            padding: 0 9px;
+            font-size: 8px;
           }
 
           .td-interact {
-            min-width: 98px;
-          }
-
-          .td-player {
-            display: none;
+            min-width: 95px;
           }
 
           .td-dialogue {
@@ -2279,18 +3232,22 @@ export default function District3D({
           }
 
           .td-dialogue-box {
-            padding: 20px;
+            padding: 19px;
           }
 
           .td-dialogue-title {
-            font-size: 22px;
+            font-size: 21px;
+          }
+
+          .td-dialogue-text {
+            font-size: 13px;
           }
         }
       `}</style>
 
-      {/* =====================================================
+      {/* ====================================================
           HUD
-      ===================================================== */}
+      ==================================================== */}
 
       <div className="td-hud">
         <div className="td-top">
@@ -2308,7 +3265,7 @@ export default function District3D({
         </div>
 
         <button
-          className="td-back touch-ui"
+          className="td-back"
           onClick={onExit}
         >
           ← BACK
@@ -2319,7 +3276,7 @@ export default function District3D({
             OBJECTIVE
           </div>
 
-          <div className="td-objective-text">
+          <div className="td-objective-name">
             {objective}
           </div>
 
@@ -2328,102 +3285,111 @@ export default function District3D({
           </div>
         </div>
 
-        <div className="td-player">
-          {characterName}
-        </div>
-
-        <div className="td-center-objective">
-          <div className="td-marker" />
-          <div className="td-center-text">
+        <div className="td-world-info">
+          <div className="td-world-marker" />
+          <div className="td-world-name">
             {objective}
           </div>
         </div>
       </div>
 
-      {/* =====================================================
-          MOBILE JOYSTICK
-      ===================================================== */}
+      {/* ====================================================
+          CONTROLS
+      ==================================================== */}
 
-      <div
-        className="td-joystick touch-ui"
-        onPointerDown={joystickStart}
-        onPointerMove={(e) => {
-          if (
-            joystickRef.current.active
-          ) {
-            joystickMove(e);
+      <div className="td-controls">
+        <div
+          className="td-joystick"
+          onPointerDown={
+            joystickPointerDown
           }
-        }}
-        onPointerUp={joystickStop}
-        onPointerCancel={joystickStop}
-      >
-        <div className="td-joystick-ring" />
+          onPointerMove={
+            joystickPointerMove
+          }
+          onPointerUp={
+            joystickPointerUp
+          }
+          onPointerCancel={
+            joystickPointerUp
+          }
+        >
+          <div className="td-joystick-inner" />
 
-        <div className="td-arrow td-up">
-          ▲
+          <div className="td-knob" />
+
+          <div className="td-joystick-label">
+            MOVE
+          </div>
         </div>
 
-        <div className="td-arrow td-down">
-          ▼
-        </div>
+        <div className="td-actions">
+          <button
+            className="td-action td-run"
+            onPointerDown={
+              startRun
+            }
+            onPointerUp={
+              stopRun
+            }
+            onPointerCancel={
+              stopRun
+            }
+            onPointerLeave={
+              stopRun
+            }
+          >
+            {running
+              ? "RUNNING"
+              : "RUN"}
+          </button>
 
-        <div className="td-arrow td-left">
-          ◀
+          <button
+            className={
+              "td-action td-interact " +
+              (canInteract
+                ? "ready"
+                : "")
+            }
+            disabled={
+              !canInteract
+            }
+            onClick={() => {
+              if (
+                canInteract
+              ) {
+                window.dispatchEvent(
+                  new CustomEvent(
+                    "tatsulok-interact"
+                  )
+                );
+              }
+            }}
+          >
+            {canInteract
+              ? interactLabel
+              : "APPROACH"}
+          </button>
         </div>
-
-        <div className="td-arrow td-right">
-          ▶
-        </div>
-
-        <div className="td-knob" />
       </div>
 
-      {/* =====================================================
-          ACTION BUTTONS
-      ===================================================== */}
-
-      <div className="td-actions touch-ui">
-        <button
-          className="td-action td-run"
-          onPointerDown={runStart}
-          onPointerUp={runStop}
-          onPointerCancel={runStop}
-          onPointerLeave={runStop}
-        >
-          {running
-            ? "RUNNING"
-            : "RUN"}
-        </button>
-
-        <button
-          className={
-            "td-action td-interact " +
-            (canInteract
-              ? "ready"
-              : "")
-          }
-          onClick={interact}
-          disabled={!canInteract}
-        >
-          {canInteract
-            ? interactText ||
-              "INTERACT"
-            : "APPROACH"}
-        </button>
-      </div>
-
-      {/* =====================================================
+      {/* ====================================================
           DIALOGUE
-      ===================================================== */}
+      ==================================================== */}
 
       {dialogue && (
         <div className="td-dialogue">
           <div className="td-dialogue-box">
             <div className="td-dialogue-label">
               {dialogue.type ===
-              "clue"
+              "survivor"
+                ? "SURVIVOR"
+                : dialogue.type ===
+                  "clue"
                 ? "INVESTIGATION"
-                : "EVACUATION CENTER"}
+                : dialogue.type ===
+                  "supplies"
+                ? "RELIEF SUPPLIES"
+                : "MISSION"}
             </div>
 
             <div className="td-dialogue-title">
@@ -2441,37 +3407,6 @@ export default function District3D({
               }
             >
               CONTINUE
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================
-          COMPLETED
-      ===================================================== */}
-
-      {completed && (
-        <div className="td-dialogue">
-          <div className="td-dialogue-box">
-            <div className="td-dialogue-label">
-              MISSION COMPLETE
-            </div>
-
-            <div className="td-dialogue-title">
-              EVACUATION CENTER REACHED
-            </div>
-
-            <div className="td-dialogue-text">
-              You made it through the
-              district and reached the
-              evacuation center.
-            </div>
-
-            <button
-              className="td-dialogue-button"
-              onClick={onExit}
-            >
-              RETURN
             </button>
           </div>
         </div>
